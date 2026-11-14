@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/history_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="暂无历史选股记录\n完成一次选股后自动保存（时间 / 策略 / 数据源 / 股票列表）\n长按记录可单选/多选删除"
+        android:textColor="?attr/dsaText2"
+        android:textSize="13sp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/history_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="72dp" />
+
+    <!-- v2.5.0：多选删除操作栏 -->
+    <LinearLayout
+        android:id="@+id/history_bar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom"
+        android:background="?attr/dsaCard"
+        android:elevation="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:visibility="gone">
+
+        <CheckBox
+            android:id="@+id/sh_select_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全选"
+            android:textColor="?attr/dsaText"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/sh_selected_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="已选 0 条"
+            android:textColor="?attr/dsaText2"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/sh_btn_delete"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:text="删除"
+            android:textColor="?attr/dsaPrimary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/sh_btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:padding="10dp"
+            android:text="取消"
+            android:textColor="?attr/dsaText2"
+            android:textSize="15sp" />
+    </LinearLayout>
+</FrameLayout>

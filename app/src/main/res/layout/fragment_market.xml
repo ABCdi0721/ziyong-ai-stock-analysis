@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/dsaBg"
+    android:orientation="vertical">
+
+    <!-- v2.12.4：页内大标题区 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="大盘"
+            android:textColor="?attr/dsaText"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="指数温度、三维一体与 123 法则"
+            android:textColor="?attr/dsaText2"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- 顶部控制行：固定不随滚动（已删除期货 tab，仅保留股票） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp">
+
+        <!-- 联网状态胶囊：圆点 + 文字（圆点联网绿/失败红/加载灰） -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_pill_surface"
+            android:tag="dsa_tag"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp">
+
+            <View
+                android:id="@+id/netDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="6dp"
+                android:background="#5F6368" />
+
+            <TextView
+                android:id="@+id/netStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="已联网 --ms"
+                android:textSize="11sp"
+                android:textColor="?attr/dsaText2" />
+        </LinearLayout>
+
+        <!-- v2.12.9：刷新档位（点按切换，与设置页「大盘页自动刷新」同一项配置，改一处两边同步） -->
+        <TextView
+            android:id="@+id/tvRefreshMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_pill_surface"
+            android:tag="dsa_tag"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="7dp"
+            android:text="每次进入 ▾"
+            android:textColor="?attr/dsaPrimary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ProgressBar
+            android:id="@+id/refreshSpin"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:visibility="gone"
+            android:layout_marginEnd="8dp" />
+
+        <ImageView
+            android:id="@+id/refreshBtn"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_pill_surface"
+            android:src="@drawable/ic_refresh"
+            android:contentDescription="刷新" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingBottom="80dp">
+
+            <!-- 三维一体主卡（主色底白字，大圆角）；v2.12.6 浅色主题下由代码换成深主色实底 -->
+            <LinearLayout
+                android:id="@+id/heroCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_primary_round"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="三维一体"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF" />
+                    <TextView
+                        android:id="@+id/dataBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="联网数据"
+                        android:textSize="11sp"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/bg_badge_green"
+                        android:tag="dsa_tag"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="4dp"
+                        android:layout_marginStart="10dp" />
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_weight="1" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="详情"
+                        android:textSize="12sp"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/bg_pill_white"
+                        android:tag="dsa_tag"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="5dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="14dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.4"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/strategyText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="战略：--"
+                            android:textSize="13sp"
+                            android:textColor="#FFFFFF"
+                            android:background="@drawable/bg_pill_white"
+                            android:tag="dsa_tag"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="6dp"
+                            android:layout_marginBottom="8dp" />
+                        <TextView
+                            android:id="@+id/tacticText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="战术：--"
+                            android:textSize="13sp"
+                            android:textColor="#FFFFFF"
+                            android:background="@drawable/bg_pill_white"
+                            android:tag="dsa_tag"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="6dp"
+                            android:layout_marginBottom="8dp" />
+                        <TextView
+                            android:id="@+id/practiceText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="实战：--"
+                            android:textSize="13sp"
+                            android:textColor="#FFFFFF"
+                            android:background="@drawable/bg_pill_white"
+                            android:tag="dsa_tag"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="6dp"
+                            android:layout_marginBottom="8dp" />
+                        <TextView
+                            android:id="@+id/riskText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="风控：--"
+                            android:textSize="13sp"
+                            android:textColor="#FFFFFF"
+                            android:background="@drawable/bg_pill_white"
+                            android:tag="dsa_tag"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="6dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="end">
+                        <TextView
+                            android:id="@+id/indexName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="上证"
+                            android:textSize="12sp"
+                            android:textColor="#E3F0FF" />
+                        <TextView
+                            android:id="@+id/indexPrice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="--"
+                            android:textSize="30sp"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF" />
+                        <TextView
+                            android:id="@+id/indexChange"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="--"
+                            android:textSize="14sp"
+                            android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 红色警示卡（大圆角） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_warn_round"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp">
+                <TextView
+                    android:id="@+id/warnLine1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="加载中…"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#F28B82"
+                    android:lineSpacingExtra="3dp" />
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#F3C1BC"
+                    android:layout_marginVertical="10dp" />
+                <TextView
+                    android:id="@+id/daoLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="道氏相互验证：统计中…"
+                    android:textSize="12sp"
+                    android:textColor="#E8A09C"
+                    android:lineSpacingExtra="3dp" />
+            </LinearLayout>
+
+            <!-- 123法则 三盏灯（大圆角卡片） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_round"
+                android:padding="16dp"
+                android:layout_marginBottom="12dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="123 法则 · 三盏灯"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/dsaText" />
+                    <TextView
+                        android:id="@+id/lightsBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="-/3"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/bg_badge_green"
+                        android:tag="dsa_tag"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="3dp"
+                        android:layout_marginStart="10dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp"
+                    android:baselineAligned="false">
+                    <TextView
+                        android:id="@+id/light1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="跌破MA20\n—"
+                        android:textSize="12sp"
+                        android:paddingVertical="14dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_light_round" />
+                    <TextView
+                        android:id="@+id/light2"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="60日转弱\n—"
+                        android:textSize="12sp"
+                        android:paddingVertical="14dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_light_round" />
+                    <TextView
+                        android:id="@+id/light3"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="跌破MA60\n—"
+                        android:textSize="12sp"
+                        android:paddingVertical="14dp"
+                        android:background="@drawable/bg_light_round" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="仅亮 1 盏 = 警告，亮 2~3 盏 = 反转确认。当前所有候选均须满足 RR≥3 才介入。"
+                    android:textSize="11sp"
+                    android:textColor="?attr/dsaText2"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="2dp" />
+            </LinearLayout>
+
+            <!-- 板块强弱（大圆角卡片，标题右侧刷新胶囊按钮） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_round"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🏢 板块强弱（实时聚合）"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/dsaText" />
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_weight="1" />
+                    <TextView
+                        android:id="@+id/sectorRefresh"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="刷新"
+                        android:textSize="12sp"
+                        android:textColor="?attr/dsaText2"
+                        android:background="@drawable/bg_pill_surface"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="5dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/upTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="领涨行业"
+                    android:textSize="12sp"
+                    android:textColor="?attr/dsaText2"
+                    android:layout_marginTop="12dp" />
+
+                <LinearLayout
+                    android:id="@+id/upSectors"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="6dp" />
+
+                <TextView
+                    android:id="@+id/downTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="领跌行业"
+                    android:textSize="12sp"
+                    android:textColor="?attr/dsaText2"
+                    android:layout_marginTop="14dp" />
+
+                <LinearLayout
+                    android:id="@+id/downSectors"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="6dp" />
+
+                <TextView
+                    android:id="@+id/sectorSource"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="数据源：东方财富行业板块"
+                    android:textSize="10sp"
+                    android:textColor="?attr/dsaText2"
+                    android:layout_marginTop="14dp" />
+            </LinearLayout>
+
+            <!-- 加载失败提示 -->
+            <TextView
+                android:id="@+id/loadError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textColor="#F28B82"
+                android:gravity="center"
+                android:visibility="gone"
+                android:padding="20dp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

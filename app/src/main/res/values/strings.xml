@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">老实赚钱很枯燥吧</string>
+    <string name="tab_watchlist">自选</string>
+    <string name="tab_market">大盘</string>
+    <string name="tab_screen">选股</string>
+    <string name="tab_mine">我的</string>
+    <string name="settings">设置</string>
+    <string name="history">历史报告</string>
+</resources>

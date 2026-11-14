@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.1 大盘页：联网数据绿色胶囊徽章 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#34A853" />
+    <corners android:radius="100dp" />
+</shape>

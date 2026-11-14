@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ============ v2.8.0 主题系统 ============
+         结构：Theme.Dsa.Base（浅色模板）→ Theme.Dsa.X（预设色）
+              Theme.Dsa.Base.Dark（深色模板）→ Theme.Dsa.X.Dark
+         运行时 ThemeManager 按 Prefs 选择并 setTheme，全局生效 -->
+    <!-- ============ v2.8.1 Material Design 3 风格 ============
+         参考 legado-with-MD3：tonal container 色板、NavigationBar pill 高亮、
+         16dp 大圆角 FAB、28dp 对话框、粗体大标题 -->
+    <style name="Theme.Dsa.Base" parent="Theme.MaterialComponents.Light">
+        <item name="colorPrimary">@color/theme_blue</item>
+        <item name="colorPrimaryVariant">@color/theme_blue_dark</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">@color/theme_blue</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorControlActivated">@color/theme_blue</item>
+        <item name="colorPrimaryContainer">@color/soft_blue</item>
+        <item name="colorOnPrimaryContainer">@color/theme_blue_dark</item>
+        <item name="colorSecondaryContainer">@color/soft_blue</item>
+        <item name="colorSurface">@color/light_card</item>
+        <item name="colorOnSurface">@color/light_text</item>
+        <item name="colorOnSurfaceVariant">@color/light_text2</item>
+        <item name="dsaPrimary">@color/theme_blue</item>
+        <item name="dsaPrimaryDark">@color/theme_blue_dark</item>
+        <item name="dsaOnPrimary">#FFFFFF</item>
+        <item name="dsaPrimarySoft">@color/soft_blue</item>
+        <!-- v2.12.4：原生控件（Spinner/下拉/菜单）文字色跟随主题，避免深色底上黑字不可读 -->
+        <item name="android:textColorPrimary">@color/light_text</item>
+        <item name="android:textColorSecondary">@color/light_text2</item>
+        <item name="dsaBg">@color/light_bg</item>
+        <item name="dsaCard">@color/light_card</item>
+        <item name="dsaSurface2">@color/light_surface2</item>
+        <item name="dsaText">@color/light_text</item>
+        <item name="dsaText2">@color/light_text2</item>
+        <item name="dsaDivider">@color/light_divider</item>
+        <!-- v2.12.4 玻璃图层 -->
+        <item name="dsaGlassTint">@color/glass_tint_light</item>
+        <item name="dsaGlassStroke">@color/glass_stroke_light</item>
+        <item name="dsaGlassHi">@color/glass_hi_light</item>
+        <item name="dsaNavBg">@color/nav_glass_light</item>
+        <item name="android:statusBarColor">@color/light_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/light_bg</item>
+        <item name="android:actionBarSize">42dp</item>
+        <item name="actionBarStyle">@style/Widget.Dsa.ActionBar</item>
+        <item name="android:actionBarStyle">@style/Widget.Dsa.ActionBar</item>
+        <item name="materialButtonStyle">@style/Widget.Dsa.Button</item>
+        <item name="floatingActionButtonStyle">@style/Widget.Dsa.Fab</item>
+        <item name="bottomNavigationStyle">@style/Widget.Dsa.BottomNav</item>
+        <item name="materialAlertDialogTheme">@style/Widget.Dsa.AlertDialog</item>
+    </style>
+
+    <style name="Theme.Dsa.Base.Dark" parent="Theme.MaterialComponents">
+        <item name="colorPrimary">@color/theme_blue</item>
+        <item name="colorPrimaryVariant">@color/theme_blue_dark</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">@color/theme_blue</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorControlActivated">@color/theme_blue</item>
+        <item name="colorPrimaryContainer">@color/dark_soft</item>
+        <item name="colorOnPrimaryContainer">@color/theme_blue</item>
+        <item name="colorSecondaryContainer">@color/dark_soft</item>
+        <item name="colorSurface">@color/dark_card</item>
+        <item name="colorOnSurface">@color/dark_text</item>
+        <item name="colorOnSurfaceVariant">@color/dark_text2</item>
+        <item name="dsaPrimary">@color/theme_blue</item>
+        <item name="dsaPrimaryDark">@color/theme_blue_dark</item>
+        <item name="dsaOnPrimary">#FFFFFF</item>
+        <item name="dsaPrimarySoft">@color/dark_soft</item>
+        <!-- v2.12.4：原生控件（Spinner/下拉/菜单）文字色跟随主题，避免深色底上黑字不可读 -->
+        <item name="android:textColorPrimary">@color/dark_text</item>
+        <item name="android:textColorSecondary">@color/dark_text2</item>
+        <item name="dsaBg">@color/dark_bg</item>
+        <item name="dsaCard">@color/dark_card</item>
+        <item name="dsaSurface2">@color/dark_surface2</item>
+        <item name="dsaText">@color/dark_text</item>
+        <item name="dsaText2">@color/dark_text2</item>
+        <item name="dsaDivider">@color/dark_divider</item>
+        <!-- v2.12.4 玻璃图层 -->
+        <item name="dsaGlassTint">@color/glass_tint_dark</item>
+        <item name="dsaGlassStroke">@color/glass_stroke_dark</item>
+        <item name="dsaGlassHi">@color/glass_hi_dark</item>
+        <item name="dsaNavBg">@color/nav_glass_dark</item>
+        <item name="android:statusBarColor">@color/dark_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/dark_bg</item>
+        <item name="android:actionBarSize">42dp</item>
+        <item name="actionBarStyle">@style/Widget.Dsa.ActionBar.Dark</item>
+        <item name="android:actionBarStyle">@style/Widget.Dsa.ActionBar.Dark</item>
+        <item name="materialButtonStyle">@style/Widget.Dsa.Button</item>
+        <item name="floatingActionButtonStyle">@style/Widget.Dsa.Fab.Dark</item>
+        <item name="bottomNavigationStyle">@style/Widget.Dsa.BottomNav.Dark</item>
+        <item name="materialAlertDialogTheme">@style/Widget.Dsa.AlertDialog.Dark</item>
+    </style>
+
+    <!-- 预设色：蓝 / 红 / 绿 / 紫 / 橙 / 青 -->
+    <style name="Theme.Dsa.Blue" parent="Theme.Dsa.Base" />
+    <style name="Theme.Dsa.Blue.Dark" parent="Theme.Dsa.Base.Dark" />
+
+    <style name="Theme.Dsa.Red" parent="Theme.Dsa.Base">
+        <item name="colorPrimary">@color/theme_red</item>
+        <item name="colorPrimaryVariant">@color/theme_red_dark</item>
+        <item name="colorSecondary">@color/theme_red</item>
+        <item name="colorControlActivated">@color/theme_red</item>
+        <item name="colorPrimaryContainer">@color/soft_red</item>
+        <item name="colorOnPrimaryContainer">@color/theme_red_dark</item>
+        <item name="colorSecondaryContainer">@color/soft_red</item>
+        <item name="dsaPrimary">@color/theme_red</item>
+        <item name="dsaPrimaryDark">@color/theme_red_dark</item>
+        <item name="dsaPrimarySoft">@color/soft_red</item>
+    </style>
+    <style name="Theme.Dsa.Red.Dark" parent="Theme.Dsa.Base.Dark">
+        <item name="colorPrimary">@color/theme_red</item>
+        <item name="colorPrimaryVariant">@color/theme_red_dark</item>
+        <item name="colorSecondary">@color/theme_red</item>
+        <item name="colorControlActivated">@color/theme_red</item>
+        <item name="colorOnPrimaryContainer">@color/theme_red</item>
+        <item name="dsaPrimary">@color/theme_red</item>
+        <item name="dsaPrimaryDark">@color/theme_red_dark</item>
+    </style>
+
+    <style name="Theme.Dsa.Green" parent="Theme.Dsa.Base">
+        <item name="colorPrimary">@color/theme_green</item>
+        <item name="colorPrimaryVariant">@color/theme_green_dark</item>
+        <item name="colorSecondary">@color/theme_green</item>
+        <item name="colorControlActivated">@color/theme_green</item>
+        <item name="colorPrimaryContainer">@color/soft_green</item>
+        <item name="colorOnPrimaryContainer">@color/theme_green_dark</item>
+        <item name="colorSecondaryContainer">@color/soft_green</item>
+        <item name="dsaPrimary">@color/theme_green</item>
+        <item name="dsaPrimaryDark">@color/theme_green_dark</item>
+        <item name="dsaPrimarySoft">@color/soft_green</item>
+    </style>
+    <style name="Theme.Dsa.Green.Dark" parent="Theme.Dsa.Base.Dark">
+        <item name="colorPrimary">@color/theme_green</item>
+        <item name="colorPrimaryVariant">@color/theme_green_dark</item>
+        <item name="colorSecondary">@color/theme_green</item>
+        <item name="colorControlActivated">@color/theme_green</item>
+        <item name="colorOnPrimaryContainer">@color/theme_green</item>
+        <item name="dsaPrimary">@color/theme_green</item>
+        <item name="dsaPrimaryDark">@color/theme_green_dark</item>
+    </style>
+
+    <style name="Theme.Dsa.Purple" parent="Theme.Dsa.Base">
+        <item name="colorPrimary">@color/theme_purple</item>
+        <item name="colorPrimaryVariant">@color/theme_purple_dark</item>
+        <item name="colorSecondary">@color/theme_purple</item>
+        <item name="colorControlActivated">@color/theme_purple</item>
+        <item name="colorPrimaryContainer">@color/soft_purple</item>
+        <item name="colorOnPrimaryContainer">@color/theme_purple_dark</item>
+        <item name="colorSecondaryContainer">@color/soft_purple</item>
+        <item name="dsaPrimary">@color/theme_purple</item>
+        <item name="dsaPrimaryDark">@color/theme_purple_dark</item>
+        <item name="dsaPrimarySoft">@color/soft_purple</item>
+    </style>
+    <style name="Theme.Dsa.Purple.Dark" parent="Theme.Dsa.Base.Dark">
+        <item name="colorPrimary">@color/theme_purple</item>
+        <item name="colorPrimaryVariant">@color/theme_purple_dark</item>
+        <item name="colorSecondary">@color/theme_purple</item>
+        <item name="colorControlActivated">@color/theme_purple</item>
+        <item name="colorOnPrimaryContainer">@color/theme_purple</item>
+        <item name="dsaPrimary">@color/theme_purple</item>
+        <item name="dsaPrimaryDark">@color/theme_purple_dark</item>
+    </style>
+
+    <style name="Theme.Dsa.Orange" parent="Theme.Dsa.Base">
+        <item name="colorPrimary">@color/theme_orange</item>
+        <item name="colorPrimaryVariant">@color/theme_orange_dark</item>
+        <item name="colorSecondary">@color/theme_orange</item>
+        <item name="colorControlActivated">@color/theme_orange</item>
+        <item name="colorPrimaryContainer">@color/soft_orange</item>
+        <item name="colorOnPrimaryContainer">@color/theme_orange_dark</item>
+        <item name="colorSecondaryContainer">@color/soft_orange</item>
+        <item name="dsaPrimary">@color/theme_orange</item>
+        <item name="dsaPrimaryDark">@color/theme_orange_dark</item>
+        <item name="dsaPrimarySoft">@color/soft_orange</item>
+    </style>
+    <style name="Theme.Dsa.Orange.Dark" parent="Theme.Dsa.Base.Dark">
+        <item name="colorPrimary">@color/theme_orange</item>
+        <item name="colorPrimaryVariant">@color/theme_orange_dark</item>
+        <item name="colorSecondary">@color/theme_orange</item>
+        <item name="colorControlActivated">@color/theme_orange</item>
+        <item name="colorOnPrimaryContainer">@color/theme_orange</item>
+        <item name="dsaPrimary">@color/theme_orange</item>
+        <item name="dsaPrimaryDark">@color/theme_orange_dark</item>
+    </style>
+
+    <style name="Theme.Dsa.Teal" parent="Theme.Dsa.Base">
+        <item name="colorPrimary">@color/theme_teal</item>
+        <item name="colorPrimaryVariant">@color/theme_teal_dark</item>
+        <item name="colorSecondary">@color/theme_teal</item>
+        <item name="colorControlActivated">@color/theme_teal</item>
+        <item name="colorPrimaryContainer">@color/soft_teal</item>
+        <item name="colorOnPrimaryContainer">@color/theme_teal_dark</item>
+        <item name="colorSecondaryContainer">@color/soft_teal</item>
+        <item name="dsaPrimary">@color/theme_teal</item>
+        <item name="dsaPrimaryDark">@color/theme_teal_dark</item>
+        <item name="dsaPrimarySoft">@color/soft_teal</item>
+    </style>
+    <style name="Theme.Dsa.Teal.Dark" parent="Theme.Dsa.Base.Dark">
+        <item name="colorPrimary">@color/theme_teal</item>
+        <item name="colorPrimaryVariant">@color/theme_teal_dark</item>
+        <item name="colorSecondary">@color/theme_teal</item>
+        <item name="colorControlActivated">@color/theme_teal</item>
+        <item name="colorOnPrimaryContainer">@color/theme_teal</item>
+        <item name="dsaPrimary">@color/theme_teal</item>
+        <item name="dsaPrimaryDark">@color/theme_teal_dark</item>
+    </style>
+
+    <!-- v2.12.4：玫瑰（默认预设，取参考界面的粉玫瑰主色） -->
+    <style name="Theme.Dsa.Rose" parent="Theme.Dsa.Base">
+        <item name="colorPrimary">@color/theme_rose</item>
+        <item name="colorPrimaryVariant">@color/theme_rose_dark</item>
+        <item name="colorSecondary">@color/theme_rose</item>
+        <item name="colorControlActivated">@color/theme_rose</item>
+        <item name="colorPrimaryContainer">@color/theme_rose_soft</item>
+        <item name="colorOnPrimaryContainer">@color/theme_rose_dark</item>
+        <item name="colorSecondaryContainer">@color/theme_rose_soft</item>
+        <item name="dsaPrimary">@color/theme_rose</item>
+        <item name="dsaPrimaryDark">@color/theme_rose_dark</item>
+        <item name="dsaPrimarySoft">@color/theme_rose_soft</item>
+    </style>
+    <style name="Theme.Dsa.Rose.Dark" parent="Theme.Dsa.Base.Dark">
+        <item name="colorPrimary">@color/theme_rose</item>
+        <item name="colorPrimaryVariant">@color/theme_rose_dark</item>
+        <item name="colorSecondary">@color/theme_rose</item>
+        <item name="colorControlActivated">@color/theme_rose</item>
+        <item name="colorPrimaryContainer">@color/dark_soft</item>
+        <item name="colorSecondaryContainer">@color/dark_soft</item>
+        <item name="colorOnPrimaryContainer">@color/theme_rose</item>
+        <item name="dsaPrimary">@color/theme_rose</item>
+        <item name="dsaPrimaryDark">@color/theme_rose_dark</item>
+        <item name="dsaPrimarySoft">@color/dark_soft</item>
+    </style>
+
+    <!-- 组件样式（v2.8.1 MD3） -->
+    <style name="Widget.Dsa.Button" parent="Widget.MaterialComponents.Button">
+        <item name="cornerRadius">10dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Dsa.BottomNav" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="itemIconTint">@drawable/bottom_nav_color</item>
+        <item name="itemTextColor">@drawable/bottom_nav_color</item>
+        <item name="itemRippleColor">@color/light_surface2</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.Dsa.NavIndicator</item>
+        <item name="android:background">@drawable/bg_nav_glass</item>
+        <item name="elevation">0dp</item>
+        <item name="backgroundTint">@null</item>
+        <item name="itemTextAppearanceActive">@style/TextAppearance.Dsa.NavActive</item>
+        <item name="itemTextAppearanceInactive">@style/TextAppearance.Dsa.NavInactive</item>
+    </style>
+    <style name="Widget.Dsa.BottomNav.Dark" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="itemIconTint">@drawable/bottom_nav_color</item>
+        <item name="itemTextColor">@drawable/bottom_nav_color</item>
+        <item name="itemRippleColor">@color/dark_surface2</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.Dsa.NavIndicator.Dark</item>
+        <item name="android:background">@drawable/bg_nav_glass</item>
+        <item name="elevation">0dp</item>
+        <item name="backgroundTint">@null</item>
+        <item name="itemTextAppearanceActive">@style/TextAppearance.Dsa.NavActive</item>
+        <item name="itemTextAppearanceInactive">@style/TextAppearance.Dsa.NavInactive</item>
+    </style>
+
+    <!-- MD3 NavigationBar 选中 pill（v2.12.4：饱和主色胶囊 + 白图标/白字） -->
+    <style name="Widget.Dsa.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">?attr/dsaPrimary</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Dsa.NavPill</item>
+        <item name="marginHorizontal">6dp</item>
+    </style>
+    <style name="Widget.Dsa.NavIndicator.Dark" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">?attr/dsaPrimary</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Dsa.NavPill</item>
+        <item name="marginHorizontal">6dp</item>
+    </style>
+    <style name="ShapeAppearance.Dsa.NavPill" parent="ShapeAppearance.MaterialComponents.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">100dp</item>
+    </style>
+    <style name="TextAppearance.Dsa.NavActive" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?attr/dsaOnPrimary</item>
+    </style>
+    <style name="TextAppearance.Dsa.NavInactive" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">?attr/dsaText2</item>
+    </style>
+
+    <!-- MD3 大圆角 FAB（16dp，主色底） -->
+    <style name="Widget.Dsa.Fab" parent="Widget.MaterialComponents.FloatingActionButton">
+        <item name="backgroundTint">?attr/dsaPrimary</item>
+        <item name="tint">@color/light_card</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Dsa.Fab</item>
+    </style>
+    <style name="Widget.Dsa.Fab.Dark" parent="Widget.MaterialComponents.FloatingActionButton">
+        <item name="backgroundTint">?attr/dsaPrimary</item>
+        <item name="tint">@color/dark_text</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Dsa.Fab</item>
+    </style>
+
+    <!-- MD3 对话框（28dp 大圆角） -->
+    <style name="Widget.Dsa.AlertDialog" parent="MaterialAlertDialog.MaterialComponents">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Dsa.Dialog</item>
+        <item name="backgroundTint">?attr/dsaCard</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Dsa.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Dsa.DialogButton</item>
+    </style>
+    <style name="Widget.Dsa.AlertDialog.Dark" parent="MaterialAlertDialog.MaterialComponents">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Dsa.Dialog</item>
+        <item name="backgroundTint">?attr/dsaCard</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Dsa.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Dsa.DialogButton</item>
+    </style>
+    <style name="Widget.Dsa.DialogButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">?attr/dsaPrimary</item>
+    </style>
+
+    <!-- MD3 形状系统 -->
+    <style name="ShapeAppearance.Dsa.Pill" parent="ShapeAppearance.MaterialComponents.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+    <style name="ShapeAppearance.Dsa.Fab" parent="ShapeAppearance.MaterialComponents.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+    <style name="ShapeAppearance.Dsa.Dialog" parent="ShapeAppearance.MaterialComponents.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <style name="Widget.Dsa.ActionBar" parent="Widget.AppCompat.Light.ActionBar">
+        <item name="background">@color/light_bg</item>
+        <item name="titleTextColor">@color/light_text</item>
+        <item name="android:background">@color/light_bg</item>
+        <item name="android:titleTextColor">@color/light_text</item>
+        <item name="titleTextStyle">@style/Widget.Dsa.ActionBarTitle</item>
+        <item name="elevation">0dp</item>
+    </style>
+    <style name="Widget.Dsa.ActionBar.Dark" parent="Widget.AppCompat.ActionBar">
+        <item name="background">@color/dark_bg</item>
+        <item name="titleTextColor">@color/dark_text</item>
+        <item name="android:background">@color/dark_bg</item>
+        <item name="android:titleTextColor">@color/dark_text</item>
+        <item name="titleTextStyle">@style/Widget.Dsa.ActionBarTitle</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <style name="Widget.Dsa.ActionBarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+    <style name="Widget.Dsa.ActionBarTitle.Dark" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/dark_text</item>
+    </style>
+
+    <!-- 兼容旧引用：Theme.DsaMobile 保留为默认蓝白浅色主题别名 -->
+    <style name="Theme.DsaMobile" parent="Theme.Dsa.Blue" />
+</resources>

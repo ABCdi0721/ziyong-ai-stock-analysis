@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.12.4 主色玻璃卡：深色玻璃底 + 低饱和主色渐变 + 主色细描边（比整块实心粉更克制） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/dsaCard" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:startColor="#33FF7FA8"
+                android:endColor="#14E0648F"
+                android:type="linear" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#1FFFFFFF"
+                android:endColor="#00000000"
+                android:type="linear" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="1dp" android:color="?attr/dsaPrimary" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,596 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="24dp">
+
+        <!-- 行情头部 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/detail_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="?attr/dsaText"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/detail_code"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/detail_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="?attr/dsaText"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/detail_change"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- v2.6.0：快捷添加自选（★ 已自选 / ☆ 加自选） -->
+            <TextView
+                android:id="@+id/btn_watch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:background="@drawable/bg_card"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="8dp"
+                android:text="☆ 自选"
+                android:textColor="?attr/dsaPrimary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- v2.12.6：热股榜排名（插在行情头部与周期切换之间，点按查看各榜名次） -->
+        <LinearLayout
+            android:id="@+id/card_hot_rank"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_hot_rank"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="热股榜"
+                    android:textColor="?attr/dsaText"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_hot_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_pill_surface"
+                    android:tag="dsa_tag"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="4dp"
+                    android:text="加载中"
+                    android:textColor="?attr/dsaText"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_hot_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="正在读取今日热榜…"
+                android:textColor="?attr/dsaText2"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- K线图切换栏：周期 + 主图/附图/量柱 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_section"
+            android:orientation="vertical"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp">
+
+            <!-- 周期切换（分时/日K/周K/月K/5日） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/period_minute"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/period_btn_bg"
+                    android:gravity="center"
+                    android:text="分时"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/period_day"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/period_btn_bg"
+                    android:gravity="center"
+                    android:text="日K"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/period_week"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/period_btn_bg"
+                    android:gravity="center"
+                    android:text="周K"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/period_month"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/period_btn_bg"
+                    android:gravity="center"
+                    android:text="月K"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/period_5d"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/period_btn_bg"
+                    android:gravity="center"
+                    android:text="5日线"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 主图 / 附图 / 量柱开关 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="主图"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <Spinner
+                    android:id="@+id/main_index_spinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="10dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="附图"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <Spinner
+                    android:id="@+id/sub_index_spinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1" />
+
+                <CheckBox
+                    android:id="@+id/vol_switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:paddingStart="4dp"
+                    android:text="量柱"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- K线图 -->
+        <com.dsa.mobile.ui.KLineView
+            android:id="@+id/kline_view"
+            android:layout_width="match_parent"
+            android:layout_height="400dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_section" />
+
+        <!-- v2.12.8：严重异动提醒（连续 10 个交易日涨跌幅偏离值累计达 +100% / -50%） -->
+        <LinearLayout
+            android:id="@+id/card_abnormal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="异动提醒"
+                    android:textColor="?attr/dsaText"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_abnormal_dev"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="10日偏离 --"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_abnormal_box"
+                android:orientation="vertical"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_pill_warn"
+                        android:tag="dsa_tag"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="3dp"
+                        android:text="当日"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_abnormal_trigger"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="正在计算…"
+                        android:textColor="?attr/dsaText"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tv_abnormal_dot"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="●"
+                        android:textColor="#188038"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/tv_abnormal_state"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="未达到严重异动条件"
+                        android:textColor="?attr/dsaText2"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_abnormal_rule"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="2dp"
+                android:text="规则：连续十个交易日内日收盘价涨跌幅偏离值累计达到 +100%（负向 -50%），将触发严重异常波动。"
+                android:textColor="?attr/dsaText2"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- 技术指标卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:id="@+id/ind_trend"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/dsaText"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/ind_ma"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="?attr/dsaText2"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/ind_volume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="?attr/dsaText2"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/ind_macd"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="?attr/dsaText2"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/ind_rsi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="?attr/dsaText2"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- 评分与信号 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="综合评分"
+                    android:textColor="?attr/dsaText"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/score_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="?attr/dsaPrimary"
+                    android:textSize="28sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/signal_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="?attr/dsaText2"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/reasons_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="?attr/dsaText2"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- v2.12.0 快捷选择 AI 模型（与设置页共用同一份配置，改一处两边同步） -->
+        <LinearLayout
+            android:id="@+id/llm_model_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI 模型"
+                android:textColor="?attr/dsaText2"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/llm_model_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="未配置"
+                android:textColor="?attr/dsaText"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="切换 ▾"
+                android:textColor="?attr/dsaPrimary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_multi_agent"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="多智能体分析"
+                app:backgroundTint="?attr/dsaPrimary" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_backtest"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="A股回测"
+                app:backgroundTint="?attr/dsaPrimary" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_board_rate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="10dp"
+            android:text="封板率预测（明日涨停概率）"
+            app:backgroundTint="?attr/dsaPrimary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_news_analyze"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="8dp"
+            android:text="新闻分析（检索 + 情绪评分）"
+            app:backgroundTint="?attr/dsaPrimary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_ai_analyze"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:text="生成 AI 分析报告"
+            app:backgroundTint="?attr/dsaPrimary" />
+
+        <TextView
+            android:id="@+id/detail_loading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="12dp"
+            android:textColor="?attr/dsaText2"
+            android:textSize="13sp" />
+    </LinearLayout>
+</ScrollView>

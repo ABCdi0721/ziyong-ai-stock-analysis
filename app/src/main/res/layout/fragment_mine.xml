@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/mine_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="A股 AI 分析"
+        android:textColor="?attr/dsaText"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="基于 daily_stock_analysis 分析逻辑的手机版"
+        android:textColor="?attr/dsaText2"
+        android:textSize="13sp" />
+
+    <LinearLayout
+        android:id="@+id/entry_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:background="@drawable/bg_card"
+        android:tag="dsa_tag"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="API 配置（数据源 Key / 大模型 Key）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="?attr/dsaText2"
+            android:textSize="22sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/entry_history"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:tag="dsa_tag"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="历史报告"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="?attr/dsaText2"
+            android:textSize="22sp" />
+    </LinearLayout>
+
+    <!-- v2.12.1：我的收藏（收藏过的 AI 分析报告） -->
+    <LinearLayout
+        android:id="@+id/entry_favorites"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:tag="dsa_tag"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="我的收藏（AI 分析报告）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/fav_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:textColor="?attr/dsaText2"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="?attr/dsaText2"
+            android:textSize="22sp" />
+    </LinearLayout>
+
+    <!-- v2.12.3：入口按需求隐藏（日常用不到），后台的焦点通知 / 超级岛参数注入逻辑保持不变。
+         如需恢复入口，把下面这行 visibility 改回 visible 即可。 -->
+    <LinearLayout
+        android:id="@+id/entry_focus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="通知与超级岛"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/focus_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:ellipsize="end"
+            android:maxWidth="150dp"
+            android:singleLine="true"
+            android:textColor="?attr/dsaText2"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="?attr/dsaText2"
+            android:textSize="22sp" />
+    </LinearLayout>
+
+    <!-- v2.8.0：主题外观入口 -->
+    <LinearLayout
+        android:id="@+id/entry_theme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:tag="dsa_tag"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="主题外观（颜色 / 深色 / 图片背景）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="?attr/dsaText2"
+            android:textSize="22sp" />
+    </LinearLayout>
+
+    <!-- v2.8.1：修改标签（点击修改标题） -->
+    <LinearLayout
+        android:id="@+id/entry_app_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:tag="dsa_tag"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="修改标签"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/current_app_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxWidth="180dp"
+            android:singleLine="true"
+            android:textColor="?attr/dsaText2"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/config_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:textColor="?attr/dsaText2"
+        android:textSize="12sp" />
+</LinearLayout>

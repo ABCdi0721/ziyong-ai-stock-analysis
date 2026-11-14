@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/dsaBg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+    <!-- v2.12.7：ViewPager2 承载四个页签，左右拖动时相邻页与当前页同屏联动平移 -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- v2.12.4：悬浮式玻璃底栏（左右留白 + 圆角 + 亮边）；v2.12.7 自绘指示胶囊，随拖动实时平移 -->
+    <FrameLayout
+        android:id="@+id/dock"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_nav_glass">
+
+        <!-- v2.12.13：液态玻璃外壳（Compose 背景层，原胶囊/图标/点击逻辑不变） -->
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/dock_glass"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <View
+            android:id="@+id/dock_pill"
+            android:layout_width="64dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_vertical"
+            android:background="@drawable/bg_dock_pill" />
+
+        <LinearLayout
+            android:id="@+id/dock_items"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:id="@+id/dock_item_0"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/dock_icon_0"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/tab_watchlist"
+                    android:src="@drawable/ic_tab_watch" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/dock_item_1"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/dock_icon_1"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/tab_market"
+                    android:src="@drawable/ic_tab_market" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/dock_item_2"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/dock_icon_2"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/tab_screen"
+                    android:src="@drawable/ic_tab_screen" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/dock_item_3"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/dock_icon_3"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/tab_mine"
+                    android:src="@drawable/ic_tab_mine" />
+            </FrameLayout>
+        </LinearLayout>
+    </FrameLayout>
+    </LinearLayout>
+
+    <!-- v2.12.11：全局宠物悬浮层（外观设置开启「全局显示」后挂入，避开底部 dock） -->
+    <FrameLayout
+        android:id="@+id/mascot_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</FrameLayout>

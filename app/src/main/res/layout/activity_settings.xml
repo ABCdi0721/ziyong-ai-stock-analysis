@@ -1,0 +1,716 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="数据源"
+            android:textColor="?attr/dsaText"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Tushare Token（用于接入 Tushare Pro 数据服务）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_tushare_token"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：Tushare Token（https://tushare.pro 获取）"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="TickFlow API Key（用于接入 TickFlow 数据服务）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_tickflow_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：TickFlow API Key"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="MiaoXiang (MX_API) API Key（妙想数据服务）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_mx_api_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：MiaoXiang API Key"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Futu OpenD Host（富途 OpenD 服务地址，留空禁用）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_futu_host"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：如 127.0.0.1:11111"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="股票索引远程更新（从 GitHub main 刷新股票索引）"
+                android:textColor="?attr/dsaText"
+                android:textSize="15sp" />
+
+            <Switch
+                android:id="@+id/sw_remote_index"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="TickFlow 日K复权模式"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_tickflow_adj"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="TickFlow 批量日K预取（批量分析前预热缓存）"
+                android:textColor="?attr/dsaText"
+                android:textSize="15sp" />
+
+            <Switch
+                android:id="@+id/sw_tickflow_prefetch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="TickFlow 批量大小（单批最大标的数）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_tickflow_batch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="默认 50"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="选股数据源（手动选择，自动=东财失败切 Tushare）"
+            android:textColor="?attr/dsaText"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/sp_screen_source"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="新闻时效（选股/分析参考新闻的最近天数）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_news_days"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Futu 港股实时数据源优先级"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_futu_priority"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="启用筹码分布分析（关闭可减少外部请求）"
+                android:textColor="?attr/dsaText"
+                android:textSize="15sp" />
+
+            <Switch
+                android:id="@+id/sw_chip_enabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- v2.12.8：大盘页自动刷新策略 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="大盘页自动刷新"
+            android:textColor="?attr/dsaText"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="未到设定时间不会联网更新，页面保留上次数据；随时可点大盘页右上角手动刷新。"
+            android:textColor="?attr/dsaText2"
+            android:textSize="12sp" />
+
+        <RadioGroup
+            android:id="@+id/rg_market_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/rb_market_entry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:buttonTint="?attr/dsaPrimary"
+                android:text="每次进入（默认）"
+                android:textColor="?attr/dsaText"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/rb_market_30"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:buttonTint="?attr/dsaPrimary"
+                android:text="30 分钟"
+                android:textColor="?attr/dsaText"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/rb_market_60"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:buttonTint="?attr/dsaPrimary"
+                android:text="1 小时"
+                android:textColor="?attr/dsaText"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/rb_market_120"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:buttonTint="?attr/dsaPrimary"
+                android:text="2 小时"
+                android:textColor="?attr/dsaText"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/rb_market_180"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:buttonTint="?attr/dsaPrimary"
+                android:text="3 小时"
+                android:textColor="?attr/dsaText"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/rb_market_never"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:buttonTint="?attr/dsaPrimary"
+                android:text="从不（只在手动刷新时更新）"
+                android:textColor="?attr/dsaText"
+                android:textSize="14sp" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="新闻检索 API（选股/AI 报告参考新闻用）"
+            android:textColor="?attr/dsaText"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="检索优先源（其余已配置的源作兜底）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_news_provider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Bocha API Keys（支持逗号分隔多个）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_news_bocha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：Bocha Key，多个用逗号分隔"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Tavily API Keys（支持逗号分隔多个）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_news_tavily"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：Tavily Key，多个用逗号分隔"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="SerpAPI API Keys（支持逗号分隔多个）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_news_serpapi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：SerpAPI Key，多个用逗号分隔"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Brave API Keys（支持逗号分隔多个）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_news_brave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：Brave Search Key，多个用逗号分隔"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="MiniMax API Keys（保留配置；其联网搜索需调用模型触发，暂不独立检索）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_news_minimax"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：MiniMax Key"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="SearXNG 自建实例地址（无配额兜底，逗号分隔多个；需启用 format: json）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_news_searxng"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="选填：如 http://192.168.1.10:8080"
+                android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="AI 模型配置（云端 OpenAI 兼容接口，不支持本地模型）"
+            android:textColor="?attr/dsaText"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="可添加多套配置，下拉即切换当前使用哪一套；「新建」清空表单填写新配置，「保存」写入并切换，删除至少保留一套。"
+            android:textColor="?attr/dsaText2"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="快速填充预设服务商（只填接口地址与模型名，API Key 需自己填）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_llm_preset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="当前使用的 AI 模型配置"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_llm_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_llm_add"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="保存"
+                android:textSize="13sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_llm_new"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="新建"
+                android:textSize="13sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_llm_delete"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="删除"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_llm_test"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="测试连接（最少 token 验证是否接通）"
+            android:textSize="13sp"
+            app:backgroundTint="?attr/dsaPrimary" />
+
+        <TextView
+            android:id="@+id/tv_llm_test_result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="?attr/dsaText2"
+            android:textSize="12sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:hintEnabled="false">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_llm_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="配置名称（可空，自动命名，如：DeepSeek / 豆包 / Kimi）"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_llm_base_url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="API 地址，如 https://api.deepseek.com（必填）"
+                android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:hintEnabled="false"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_llm_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="API Key（必填）"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:hintEnabled="false">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_llm_model"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="主模型名，如 deepseek-chat（必填）"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:hintEnabled="false">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_llm_fallback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="备选模型名（可空，主模型失败时自动切换）"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Temperature（控制输出随机性，0-2，推荐 0.7）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:hintEnabled="false">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_llm_temperature"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="默认 0.7"
+                android:inputType="numberDecimal" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Token 节省模式（AI 分析）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <Spinner
+            android:id="@+id/sp_token_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="说明：行情/K线默认走腾讯免费接口；填写 Tushare Token 后优先走 Tushare；选股走东方财富公开接口，无需 Key。AI 报告使用上方云端 API（取消本地 Ollama）。"
+            android:textColor="?attr/dsaText2"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:text="所有设置修改后自动保存，无需手动点保存"
+            android:textColor="?attr/dsaPrimary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</ScrollView>

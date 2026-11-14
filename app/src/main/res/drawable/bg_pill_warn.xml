@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.12.8 异动提醒「当日」橙色胶囊 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#F5772E" />
+    <corners android:radius="6dp" />
+</shape>

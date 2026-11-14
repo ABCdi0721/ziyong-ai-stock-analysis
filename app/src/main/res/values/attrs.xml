@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- v2.8.0：主题系统自定义属性（各预设主题 / 深色模式提供不同取值） -->
+    <attr name="dsaPrimary" format="color" />
+    <attr name="dsaPrimaryDark" format="color" />
+    <attr name="dsaOnPrimary" format="color" />
+    <attr name="dsaPrimarySoft" format="color" />
+    <attr name="dsaBg" format="color" />
+    <attr name="dsaCard" format="color" />
+    <attr name="dsaSurface2" format="color" />
+    <attr name="dsaText" format="color" />
+    <attr name="dsaText2" format="color" />
+    <attr name="dsaDivider" format="color" />
+    <!-- v2.12.4：玻璃质感图层（静态，不做实时高斯模糊） -->
+    <attr name="dsaGlassTint" format="color" />
+    <attr name="dsaGlassStroke" format="color" />
+    <attr name="dsaGlassHi" format="color" />
+    <attr name="dsaNavBg" format="color" />
+</resources>

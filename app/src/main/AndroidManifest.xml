@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.DsaMobile"
+        android:usesCleartextTraffic="true"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".StockDetailActivity" />
+        <activity android:name=".ReportActivity" />
+        <activity android:name=".BoardRateActivity" />
+        <activity android:name=".ScreeningActivity" />
+        <activity android:name=".ScreenHistoryActivity" />
+        <activity android:name=".HistoryActivity" />
+        <activity android:name=".FavoriteActivity" />
+        <activity android:name=".MultiAgentActivity" />
+        <activity android:name=".BacktestActivity" />
+        <activity android:name=".SettingsActivity" />
+        <activity android:name=".ThemeActivity" />
+    </application>
+</manifest>

@@ -1,0 +1,21 @@
+# 构建产物与缓存
+app/build/
+build/
+.gradle/
+.kotlin/
+.idea/
+*.iml
+
+# 根目录调试截图（src 内资源图片保留）
+/*.png
+
+# 本机配置与签名库（不进入远端）
+local.properties
+*.jks
+
+# 临时脚本
+/*.ps1
+
+# 日志与系统文件
+*.log
+.DS_Store

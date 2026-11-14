@@ -1,0 +1,82 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+android {
+    namespace 'com.dsa.mobile'
+    compileSdk 35
+    buildToolsVersion "35.0.0"
+
+    defaultConfig {
+        applicationId "com.dsa.mobile"
+        minSdk 26
+        targetSdk 34
+        versionCode 47
+        versionName "2.12.13"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("../dsa-release.jks")
+            storePassword "REDACTED"
+            keyAlias "dsa"
+            keyPassword "REDACTED"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        viewBinding true
+        compose true
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+    // Kotlin 2.2 分析 API 与 AGP 内置 lint 检测器（NonNullableMutableLiveDataDetector）不兼容，
+    // release vital lint 会在分析阶段崩溃；关闭 release 构建的强制 lint，不影响打包与签名。
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+        disable "NullSafeMutableLiveData"
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.viewpager2:viewpager2:1.1.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // Jetpack Compose（对齐 backdrop 1.0.0 运行时 Compose 1.9.4）
+    implementation 'androidx.compose.ui:ui:1.9.4'
+    implementation 'androidx.compose.ui:ui-graphics:1.9.4'
+    implementation 'androidx.compose.ui:ui-tooling-preview:1.9.4'
+    implementation 'androidx.compose.foundation:foundation:1.9.4'
+    implementation 'androidx.activity:activity-compose:1.10.1'
+
+    // Liquid Glass（Backdrop 液态玻璃原语库）
+    implementation 'io.github.kyant0:backdrop:1.0.0'
+
+    testImplementation 'junit:junit:4.13.2'
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.12.4 选中态：主色胶囊上的白图标/白字；未选中：次级文字色 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="?attr/dsaOnPrimary" android:state_checked="true" />
+    <item android:color="?attr/dsaText2" />
+</selector>

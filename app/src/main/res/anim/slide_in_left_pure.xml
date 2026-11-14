@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.3 纯平移：新页从左侧滑入（无淡入） -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/decelerate_interpolator">
+    <translate
+        android:duration="260"
+        android:fromXDelta="-100%p"
+        android:toXDelta="0" />
+</set>

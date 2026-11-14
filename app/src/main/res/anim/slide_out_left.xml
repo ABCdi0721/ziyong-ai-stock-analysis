@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.2 切 tab 动画：旧页面向左滑出 -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/decelerate_interpolator">
+    <translate
+        android:duration="260"
+        android:fromXDelta="0"
+        android:toXDelta="-12%p" />
+    <alpha
+        android:duration="260"
+        android:fromAlpha="1.0"
+        android:toAlpha="0.6" />
+</set>
