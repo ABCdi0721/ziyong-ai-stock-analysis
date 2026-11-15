@@ -152,10 +152,17 @@ class MainActivity : BaseActivity() {
     private fun refreshDockSnapshot() {
         if (binding.dock.width <= 0) return
         val now = System.currentTimeMillis()
-        if (now - lastCaptureAt < 500) return
+        if (now - lastCaptureAt < 1500) return
         lastCaptureAt = now
-        DockSnapshot.captureWindow(this, binding.dock, listOf(binding.mascotLayer)) { bmp ->
-            dockSnapshot = bmp
+        // 捕获时连同选中胶囊、四个图标一起隐藏：快照只保留后方页面内容，
+        // 避免旧快照里残留上一页的选中胶囊 / 着色图标，造成未选中格位出现粉底残影
+        val hidden = listOf(
+            binding.mascotLayer, binding.dockPill,
+            binding.dockIcon0, binding.dockIcon1, binding.dockIcon2, binding.dockIcon3
+        )
+        // 仅当新快照成功返回才替换；捕获进行中 / 失败返回 null 时保留上一张快照，避免背景瞬间置空造成闪烁
+        DockSnapshot.captureWindow(this, binding.dock, hidden) { bmp ->
+            if (bmp != null) dockSnapshot = bmp
         }
     }
 
@@ -165,7 +172,7 @@ class MainActivity : BaseActivity() {
         idleSnapshotRunnable?.let { binding.root.removeCallbacks(it) }
         val r = Runnable { refreshDockSnapshot() }
         idleSnapshotRunnable = r
-        binding.root.postDelayed(r, 150)
+        binding.root.postDelayed(r, 250)
     }
 
     /** 递归给当前页内的可滚动容器挂快照刷新监听（大盘 ScrollView / 自选·我的 RecyclerView 等） */
@@ -173,11 +180,15 @@ class MainActivity : BaseActivity() {
         when (root) {
             is ScrollView -> root.setOnScrollChangeListener { _, _, _, _, _ -> scheduleIdleSnapshot() }
             is NestedScrollView -> root.setOnScrollChangeListener { _, _, _, _, _ -> scheduleIdleSnapshot() }
-            is RecyclerView -> root.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                override fun onScrollStateChanged(rv: RecyclerView, state: Int) {
-                    if (state == RecyclerView.SCROLL_STATE_IDLE) refreshDockSnapshot()
-                }
-            })
+            is RecyclerView -> {
+                // 先清空旧监听，避免反复挂接导致监听器累积、滚动时重复触发快照刷新
+                root.clearOnScrollListeners()
+                root.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                    override fun onScrollStateChanged(rv: RecyclerView, state: Int) {
+                        if (state == RecyclerView.SCROLL_STATE_IDLE) refreshDockSnapshot()
+                    }
+                })
+            }
         }
         if (root is ViewGroup) {
             for (i in 0 until root.childCount) attachScrollSnapshotListeners(root.getChildAt(i))
@@ -201,6 +212,13 @@ class MainActivity : BaseActivity() {
         icons.forEachIndexed { index, icon ->
             icon.setColorFilter(if (index == selected) on else off)
         }
+        // 仅当前页签处于选中态：逐项复位按压/选中状态，避免快速连点或动画过程中多格残留高亮
+        dockItems.forEachIndexed { index, view ->
+            view.isSelected = index == selected
+            view.isPressed = false
+        }
+        binding.dockPill.invalidate()
+        binding.dockItems.invalidate()
     }
 
     private fun Float.roundToIntSafe(): Int {

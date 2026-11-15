@@ -32,5 +32,6 @@
         <activity android:name=".BacktestActivity" />
         <activity android:name=".SettingsActivity" />
         <activity android:name=".ThemeActivity" />
+        <activity android:name=".BackupActivity" />
     </application>
 </manifest>

@@ -184,6 +184,34 @@
             android:textSize="22sp" />
     </LinearLayout>
 
+    <!-- v2.12.15：备份与恢复（WebDAV） -->
+    <LinearLayout
+        android:id="@+id/entry_backup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_card"
+        android:tag="dsa_tag"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="备份与恢复（WebDAV）"
+            android:textColor="?attr/dsaText"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="?attr/dsaText2"
+            android:textSize="22sp" />
+    </LinearLayout>
+
     <!-- v2.8.1：修改标签（点击修改标题） -->
     <LinearLayout
         android:id="@+id/entry_app_title"

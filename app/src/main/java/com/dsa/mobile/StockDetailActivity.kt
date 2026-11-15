@@ -408,8 +408,10 @@ class StockDetailActivity : BaseActivity() {
         val title = "热股榜排名 · ${quote?.name ?: code}"
         val body = if (info == null || info.slots.isEmpty()) {
             "该股当前未出现在今日热股榜。\n\n" +
-                "热股榜汇总东方财富人气榜、东方财富关注榜、同花顺 24 小时榜与今日榜，" +
-                "每天滚动更新；未上榜只代表关注度暂未进入前 100，不代表个股没有交易机会。"
+                "热股榜汇总东方财富人气榜、东方财富关注榜、同花顺 24 小时榜与今日榜；" +
+                "各公开榜单接口仅开放前 100 名，四榜合并去重后约 300 余只，" +
+                "热度排名只覆盖上榜的头部股票，未上榜只代表关注度暂未进入头部热度，" +
+                "不代表个股没有交易机会。"
         } else {
             info.slots.joinToString("\n\n") { s ->
                 "· ${s.name}：第 ${s.rank} 名" + if (s.total > 0) "（收录 ${s.total} 只）" else ""

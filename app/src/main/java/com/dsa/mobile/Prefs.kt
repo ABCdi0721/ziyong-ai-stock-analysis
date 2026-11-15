@@ -678,4 +678,89 @@ object Prefs {
             it.code == code && it.date == date && it.report == report
         }?.id ?: 0L
     }
+
+    // ---- v2.12.15：WebDAV 备份与恢复 ----
+
+    fun webdavUrl(ctx: Context): String = sp(ctx).getString("webdav_url", "") ?: ""
+    fun webdavUser(ctx: Context): String = sp(ctx).getString("webdav_user", "") ?: ""
+    fun webdavPass(ctx: Context): String = sp(ctx).getString("webdav_pass", "") ?: ""
+    fun webdavFolder(ctx: Context): String = sp(ctx).getString("webdav_folder", "") ?: ""
+    fun webdavDevice(ctx: Context): String = sp(ctx).getString("webdav_device", "") ?: ""
+
+    fun saveWebDav(
+        ctx: Context, url: String, user: String, pass: String,
+        folder: String, device: String
+    ) {
+        sp(ctx).edit()
+            .putString("webdav_url", url.trim())
+            .putString("webdav_user", user.trim())
+            .putString("webdav_pass", pass)
+            .putString("webdav_folder", folder.trim())
+            .putString("webdav_device", device.trim())
+            .apply()
+    }
+
+    /** 不纳入备份的内部键（一次性迁移标志等） */
+    private fun backupExcluded(key: String): Boolean = key == "theme_migrated_24"
+
+    /**
+     * 导出全部可备份设置为 JSON：数据源 API、新闻检索 API、AI 模型配置、主题与基础设置，
+     * 以及自选股 / 历史选股等业务数据；值按原始类型写入，恢复时按类型还原。
+     */
+    fun exportBackup(ctx: Context): JSONObject {
+        val root = JSONObject()
+        val meta = JSONObject()
+        meta.put("app", "com.dsa.mobile")
+        meta.put("version", 1)
+        meta.put("time", System.currentTimeMillis())
+        root.put("meta", meta)
+
+        val data = JSONObject()
+        sp(ctx).all.forEach { (key, value) ->
+            if (backupExcluded(key)) return@forEach
+            when (value) {
+                is String -> data.put(key, value)
+                is Boolean -> data.put(key, value)
+                is Int -> data.put(key, value)
+                is Long -> data.put(key, value)
+                is Float -> data.put(key, value.toDouble())
+                is Double -> data.put(key, value)
+                is Set<*> -> data.put(key, JSONArray(value.toList().map { it.toString() }))
+                else -> data.put(key, value.toString())
+            }
+        }
+        root.put("data", data)
+        return root
+    }
+
+    /**
+     * 从备份 JSON 还原设置；缺失的键保持现状，类型不匹配时容错跳过。
+     * 返回还原成功的键数量。
+     */
+    fun restoreBackup(ctx: Context, root: JSONObject): Int {
+        val data = root.optJSONObject("data") ?: return 0
+        val editor = sp(ctx).edit()
+        var count = 0
+        val keys = data.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            if (backupExcluded(key)) continue
+            when (val v = data.opt(key)) {
+                is String -> editor.putString(key, v)
+                is Boolean -> editor.putBoolean(key, v)
+                is Int -> editor.putInt(key, v)
+                is Long -> editor.putLong(key, v)
+                is Double -> editor.putFloat(key, v.toFloat())
+                is JSONArray -> {
+                    val set = LinkedHashSet<String>()
+                    for (i in 0 until v.length()) set.add(v.optString(i))
+                    editor.putStringSet(key, set)
+                }
+                else -> continue
+            }
+            count++
+        }
+        editor.apply()
+        return count
+    }
 }

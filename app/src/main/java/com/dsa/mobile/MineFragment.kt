@@ -30,6 +30,10 @@ class MineFragment : Fragment() {
         b.entryTheme.setOnClickListener {
             startActivity(Intent(requireContext(), ThemeActivity::class.java))
         }
+        // v2.12.15：备份与恢复（WebDAV）
+        b.entryBackup.setOnClickListener {
+            startActivity(Intent(requireContext(), BackupActivity::class.java))
+        }
         // v2.8.1：修改标签（点击修改标题文字）
         b.entryAppTitle.setOnClickListener { showTitleDialog() }
         // v2.12.1：我的收藏
