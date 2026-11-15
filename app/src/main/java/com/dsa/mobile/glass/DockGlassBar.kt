@@ -41,10 +41,10 @@ fun DockGlassBar(
         modifier = modifier,
         shape = RoundedCornerShape(26.dp),
         backdrop = backdrop,
-        // 表面叠层进一步压淡，让后方卡片 / 文字透过快照层被模糊后更清晰可见
-        tint = colors.navBg.copy(alpha = if (colors.isDark) 0.34f else 0.42f),
+        // 表面叠层适度压淡并加大模糊半径：后方卡片 / 文字经快照层柔化后呈朦胧毛玻璃感，避免色块与文字过于清晰
+        tint = colors.navBg.copy(alpha = if (colors.isDark) 0.38f else 0.46f),
         stroke = colors.glassStroke,
-        blurDp = if (blurEnabled) 12.dp else 0.dp,
+        blurDp = if (blurEnabled) 16.dp else 0.dp,
         lensHeightDp = 16.dp,
         lensAmountDp = 22.dp,
         shadowEnabled = false,

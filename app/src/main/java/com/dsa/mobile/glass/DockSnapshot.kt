@@ -35,6 +35,9 @@ object DockSnapshot {
     /** 捕获进行中标志：避免滚动/布局高频触发导致多次隐藏-恢复竞态 */
     private var capturing = false
 
+    /** 是否有一次窗口帧捕获正在进行（供调用方排队补抓，避免切页时快照被旧帧占用） */
+    fun isCapturing(): Boolean = capturing
+
     /**
      * Android 11+：复制窗口合成帧中 [dock] 覆盖区域的位图。
      *

@@ -86,6 +86,8 @@ class MainActivity : BaseActivity() {
         binding.pager.offscreenPageLimit = 1
         // 「无动画」模式下不接管拖动，点击瞬时切换（与既有设置含义一致）
         binding.pager.isUserInputEnabled = Prefs.switchAnim(this) != "none"
+        // dock 宿主把底部区域的横向滑动转交给 pager，点击仍留给页签
+        binding.dock.pager = binding.pager
         binding.pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
                 // 浮点页索引：0 → 1 的整个拖动过程都连续变化，dock 胶囊按同一进度平移
@@ -100,8 +102,23 @@ class MainActivity : BaseActivity() {
             override fun onPageSelected(position: Int) {
                 resetPageAlpha()
                 updateDock(position.toFloat())
-                binding.pager.post { attachScrollSnapshotListeners(binding.pager) }
-                refreshDockSnapshot()
+                binding.pager.post {
+                    attachScrollSnapshotListeners(binding.pager)
+                    // 再等一帧：新页内容上屏后强制重抓快照，避免旧页背景残留在玻璃层；
+                    // 同时按 pager 最终页签再校正一次胶囊，覆盖动画尾部可能残留的旧滚动进度
+                    binding.pager.post {
+                        updateDock(binding.pager.currentItem.toFloat())
+                        refreshDockSnapshot(force = true)
+                    }
+                }
+            }
+
+            override fun onPageScrollStateChanged(state: Int) {
+                // 手势 / 翻页动画停稳后，按 pager 最终页签强制校正胶囊位置，
+                // 兜住快速 fling 时尾部旧滚动回调把胶囊拉回上一格的情况
+                if (state == ViewPager2.SCROLL_STATE_IDLE) {
+                    updateDock(binding.pager.currentItem.toFloat())
+                }
             }
         })
     }
@@ -145,24 +162,35 @@ class MainActivity : BaseActivity() {
         binding.dockItems.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateDock(pillFraction)
         }
+        // 首帧按 pager 当前页定位胶囊，避免恢复 / 重建后胶囊停在默认第 1 格
+        binding.root.post {
+            pillFraction = binding.pager.currentItem.toFloat()
+            updateDock(pillFraction)
+        }
     }
 
-    /** 重新捕获 dock 后方内容快照，刷新玻璃背景层（异步：PixelCopy 回调内写状态） */
+    /** 重新捕获 dock 后方内容快照，刷新玻璃背景层（异步：PixelCopy 回调内写状态）。
+     *  @param force 切页等明确场景强制刷新，跳过节流；捕获进行中则排队，结束后补抓一次 */
     private var lastCaptureAt = 0L
-    private fun refreshDockSnapshot() {
+    private var pendingCapture = false
+    private fun refreshDockSnapshot(force: Boolean = false) {
         if (binding.dock.width <= 0) return
         val now = System.currentTimeMillis()
-        if (now - lastCaptureAt < 1500) return
+        if (!force && now - lastCaptureAt < 1500) return
         lastCaptureAt = now
-        // 捕获时连同选中胶囊、四个图标一起隐藏：快照只保留后方页面内容，
-        // 避免旧快照里残留上一页的选中胶囊 / 着色图标，造成未选中格位出现粉底残影
-        val hidden = listOf(
-            binding.mascotLayer, binding.dockPill,
-            binding.dockIcon0, binding.dockIcon1, binding.dockIcon2, binding.dockIcon3
-        )
+        // 只隐藏全局宠物悬浮层；dock 胶囊与图标保持可见，避免捕获瞬间 alpha 0→1 造成显隐闪烁。
+        // 快照里带入的胶囊/图标会被玻璃模糊层柔化，前景清晰图标再叠在其上。
+        val hidden = listOf(binding.mascotLayer)
+        if (DockSnapshot.isCapturing()) pendingCapture = true
         // 仅当新快照成功返回才替换；捕获进行中 / 失败返回 null 时保留上一张快照，避免背景瞬间置空造成闪烁
         DockSnapshot.captureWindow(this, binding.dock, hidden) { bmp ->
-            if (bmp != null) dockSnapshot = bmp
+            if (bmp != null) {
+                dockSnapshot = bmp
+                pendingCapture = false
+            } else if (pendingCapture) {
+                pendingCapture = false
+                binding.root.postDelayed({ refreshDockSnapshot(force = true) }, 120)
+            }
         }
     }
 
@@ -197,6 +225,8 @@ class MainActivity : BaseActivity() {
 
     /** fraction 为浮点页索引（如 1.42 表示停在第 2 页往第 3 页拖了 42%） */
     private fun updateDock(fraction: Float) {
+        // 同步回写字段：布局回调 / 尺寸变化重绘时沿用最新位置，避免 onPageSelected 定位后被旧 fraction 覆盖
+        pillFraction = fraction
         val itemsWidth = binding.dockItems.width
         if (itemsWidth <= 0) return
         val itemWidth = itemsWidth.toFloat() / pageCount

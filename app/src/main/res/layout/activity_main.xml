@@ -13,7 +13,7 @@
 
     <!-- v2.12.4：悬浮式玻璃底栏（左右留白 + 圆角 + 亮边）；v2.12.7 自绘指示胶囊，随拖动实时平移。
          v2.12.14：不再垫静态实底，后方透出与模糊/折射全部由 Compose 液态玻璃层承担 -->
-    <FrameLayout
+    <com.dsa.mobile.glass.DockBarHost
         android:id="@+id/dock"
         android:layout_width="match_parent"
         android:layout_height="52dp"
@@ -108,7 +108,7 @@
                     android:src="@drawable/ic_tab_mine" />
             </FrameLayout>
         </LinearLayout>
-    </FrameLayout>
+    </com.dsa.mobile.glass.DockBarHost>
 
     <!-- v2.12.11：全局宠物悬浮层（外观设置开启「全局显示」后挂入，避开底部 dock） -->
     <FrameLayout
