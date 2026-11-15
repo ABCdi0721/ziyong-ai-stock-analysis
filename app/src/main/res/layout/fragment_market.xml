@@ -119,7 +119,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="12dp"
-            android:paddingBottom="80dp">
+            android:paddingBottom="32dp">
 
             <!-- 三维一体主卡（主色底白字，大圆角）；v2.12.6 浅色主题下由代码换成深主色实底 -->
             <LinearLayout

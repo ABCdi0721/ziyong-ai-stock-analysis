@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -45,6 +47,8 @@ fun GlassSurface(
     lensHeightDp: Dp = 10.dp,
     lensAmountDp: Dp = 14.dp,
     shadowEnabled: Boolean = true,
+    rainbowStroke: Boolean = false,
+    isDark: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
@@ -55,7 +59,7 @@ fun GlassSurface(
                 vibrancy()
                 if (blurDp > 0.dp) blur(blurDp.toPx())
                 if (lensHeightDp > 0.dp && lensAmountDp > 0.dp) {
-                    lens(lensHeightDp.toPx(), lensAmountDp.toPx())
+                    lens(lensHeightDp.toPx(), lensAmountDp.toPx(), chromaticAberration = true)
                 }
             },
             shadow = if (shadowEnabled) ({ Shadow.Default }) else null,
@@ -63,15 +67,32 @@ fun GlassSurface(
                 if (tint != Color.Unspecified) drawRect(tint)
             },
             onDrawFront = {
+                val r = (shape as? CornerBasedShape)?.let {
+                    val px = it.topStart.toPx(size, this)
+                    CornerRadius(px, px)
+                } ?: CornerRadius(20.dp.toPx(), 20.dp.toPx())
                 if (stroke != Color.Unspecified) {
-                    val r = (shape as? CornerBasedShape)?.let {
-                        val px = it.topStart.toPx(size, this)
-                        CornerRadius(px, px)
-                    } ?: CornerRadius(20.dp.toPx(), 20.dp.toPx())
                     drawRoundRect(
                         color = stroke,
                         cornerRadius = r,
                         style = Stroke(width = 1.dp.toPx())
+                    )
+                }
+                if (rainbowStroke) {
+                    val alpha = if (isDark) 0.65f else 0.6f
+                    val rainbow = listOf(
+                        0xFFFF5F6D.toInt(), 0xFFFFB347.toInt(), 0xFFFFE066.toInt(),
+                        0xFF5FE38A.toInt(), 0xFF5FB4FF.toInt(), 0xFFB58CFF.toInt()
+                    ).map { Color(it).copy(alpha = alpha) }
+                    val brush = Brush.linearGradient(
+                        colors = rainbow,
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, size.height)
+                    )
+                    drawRoundRect(
+                        brush = brush,
+                        cornerRadius = r,
+                        style = Stroke(width = 1.4.dp.toPx())
                     )
                 }
             }

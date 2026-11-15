@@ -5,18 +5,27 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.ScrollView
+import androidx.core.widget.NestedScrollView
+import androidx.recyclerview.widget.RecyclerView
 import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import com.dsa.mobile.databinding.ActivityMainBinding
-import com.dsa.mobile.glass.GlassCard
+import com.dsa.mobile.glass.DockGlassBar
+import com.dsa.mobile.glass.DockSnapshot
 import com.dsa.mobile.glass.setGlassContent
 import com.google.android.material.color.MaterialColors
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 
 /**
  * 主界面（v2.12.7）
@@ -33,6 +42,9 @@ class MainActivity : BaseActivity() {
     private lateinit var icons: List<ImageView>
     private var dockItems: List<android.view.View> = emptyList()
     private var pillFraction = 0f
+
+    /** dock 后方内容快照（Compose state，写入后触发玻璃层重组）；null 表示首帧尚未捕获 */
+    private var dockSnapshot by mutableStateOf<ImageBitmap?>(null)
 
     /** 底部四个页签的顺序（左→右），与 ViewPager2 的 position 一一对应 */
     private val pageCount = 4
@@ -79,6 +91,7 @@ class MainActivity : BaseActivity() {
                 // 浮点页索引：0 → 1 的整个拖动过程都连续变化，dock 胶囊按同一进度平移
                 pillFraction = position + positionOffset
                 updateDock(pillFraction)
+                // 拖动过程不重抓快照（避免反复隐藏 dock 造成闪烁）；停稳后由 onPageSelected 抓一次
                 if (Prefs.switchAnim(this@MainActivity) == "slide_fade") {
                     applyPageAlpha(position, positionOffset)
                 }
@@ -87,6 +100,8 @@ class MainActivity : BaseActivity() {
             override fun onPageSelected(position: Int) {
                 resetPageAlpha()
                 updateDock(position.toFloat())
+                binding.pager.post { attachScrollSnapshotListeners(binding.pager) }
+                refreshDockSnapshot()
             }
         })
     }
@@ -94,16 +109,22 @@ class MainActivity : BaseActivity() {
     // ------------------------- 底部 dock -------------------------
 
     private fun setupDock() {
-        // 液态玻璃外壳：仅视觉背景层，胶囊平移与图标着色逻辑保持不变。
-        // 半透明底色由静态导航底单层承担，Compose 层只保留描边/高光/折射观感，不叠实底、不开投影。
+        // 真液态玻璃：背景层为后方内容快照位图，叠库自带的模糊/折射/高光；胶囊平移与图标着色不变。
         binding.dockGlass.setGlassContent(this) { colors ->
-            GlassCard(
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                cornerDp = 26.dp,
-                tint = androidx.compose.ui.graphics.Color.Unspecified,
-                stroke = colors.glassStroke,
-                shadowEnabled = false
+            DockGlassBar(
+                snapshot = dockSnapshot,
+                colors = colors,
+                blurEnabled = Prefs.themeBgBlurOn(this@MainActivity),
+                modifier = androidx.compose.ui.Modifier.fillMaxSize()
             ) {}
+        }
+        // 首帧布局完成后抓一次快照；后续布局变化由切页/滚动空闲回调触发，避免重复隐藏 dock
+        var layoutCaptured = false
+        binding.root.doOnLayout {
+            if (!layoutCaptured) {
+                layoutCaptured = true
+                refreshDockSnapshot()
+            }
         }
         icons = listOf(
             binding.dockIcon0, binding.dockIcon1, binding.dockIcon2, binding.dockIcon3
@@ -123,6 +144,43 @@ class MainActivity : BaseActivity() {
         binding.dockItems.doOnLayout { updateDock(pillFraction) }
         binding.dockItems.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateDock(pillFraction)
+        }
+    }
+
+    /** 重新捕获 dock 后方内容快照，刷新玻璃背景层（异步：PixelCopy 回调内写状态） */
+    private var lastCaptureAt = 0L
+    private fun refreshDockSnapshot() {
+        if (binding.dock.width <= 0) return
+        val now = System.currentTimeMillis()
+        if (now - lastCaptureAt < 500) return
+        lastCaptureAt = now
+        DockSnapshot.captureWindow(this, binding.dock, listOf(binding.mascotLayer)) { bmp ->
+            dockSnapshot = bmp
+        }
+    }
+
+    /** 滚动停止后延迟重抓快照；滚动持续时不断重置，确保只在空闲后抓一次（避免滚动中反复隐藏 dock 闪烁） */
+    private var idleSnapshotRunnable: Runnable? = null
+    private fun scheduleIdleSnapshot() {
+        idleSnapshotRunnable?.let { binding.root.removeCallbacks(it) }
+        val r = Runnable { refreshDockSnapshot() }
+        idleSnapshotRunnable = r
+        binding.root.postDelayed(r, 150)
+    }
+
+    /** 递归给当前页内的可滚动容器挂快照刷新监听（大盘 ScrollView / 自选·我的 RecyclerView 等） */
+    private fun attachScrollSnapshotListeners(root: View) {
+        when (root) {
+            is ScrollView -> root.setOnScrollChangeListener { _, _, _, _, _ -> scheduleIdleSnapshot() }
+            is NestedScrollView -> root.setOnScrollChangeListener { _, _, _, _, _ -> scheduleIdleSnapshot() }
+            is RecyclerView -> root.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrollStateChanged(rv: RecyclerView, state: Int) {
+                    if (state == RecyclerView.SCROLL_STATE_IDLE) refreshDockSnapshot()
+                }
+            })
+        }
+        if (root is ViewGroup) {
+            for (i in 0 until root.childCount) attachScrollSnapshotListeners(root.getChildAt(i))
         }
     }
 
@@ -177,6 +235,10 @@ class MainActivity : BaseActivity() {
             recreate()
         } else {
             lastThemeKey = key
+            binding.root.post {
+                attachScrollSnapshotListeners(binding.root)
+                refreshDockSnapshot()
+            }
         }
     }
 }
