@@ -83,7 +83,7 @@
 ## 目录结构
 
 ```
-dsa_android/
+ziyong-ai-stock-analysis/
 ├── app/
 │   └── src/main/
 │       ├── java/com/dsa/mobile/   # 业务代码（Activity / 数据层 / 策略 / 玻璃组件）
@@ -99,8 +99,8 @@ dsa_android/
 
 ## 构建说明
 
-- 环境：JDK 17、Android SDK 35、Gradle 8.9。
-- 构建 debug：`./gradlew assembleDebug`；构建 release：`./gradlew assembleRelease`。
+- 环境：JDK 17、Android SDK 35、Gradle 8.9（工程未自带 wrapper，使用本机安装的 Gradle）。
+- 构建 debug：`gradle assembleDebug`；构建 release：`gradle assembleRelease`。
 - release 签名库 `dsa-release.jks` 已在 `.gitignore` 中排除、不进入远端仓库；本地发布构建需自备签名配置，签名口令不要写入公开仓库。
 
 ## 已知口径与限制
