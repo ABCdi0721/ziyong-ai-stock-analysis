@@ -77,7 +77,8 @@
 
 ### 参考与移植来源（非代码依赖）
 
-- 个股分析器、技术指标口径、选股评分逻辑移植自 Python 项目 `daily_stock_analysis`（`stock_analyzer.py`、`decision_scale.py`、`screening/filter.py`、`scorer.py`、指标计算模块）。
+- 个股分析器、技术指标口径、选股评分逻辑移植自 Python 项目 [ZhuLinsen/daily_stock_analysis](https://github.com/ZhuLinsen/daily_stock_analysis)（MIT；`src/stock_analyzer.py`、`schemas/decision_scale.py`、`services/screening/filter.py`、`scorer.py`、指标计算模块）。
+- 多智能体分析流水线（分析师团队 → 多空研究员辩论 → 交易员 → 风控 / 组合经理）对齐移植自 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents)（Apache-2.0）；数据源替换为国内可访问的腾讯 / Tushare + 新闻检索。
 - 部分选股策略思路参考开源量化策略集合 `ashare-quant-strategies`：#034 多维量能、#048 小市值精选、#049 低价动量、#112 涨停捕手。
 - 大盘数据源的限流与三级降级策略参考上游 PR#36。
 - Material Design 3 主题风格参考 `legado-with-MD3` 的 tonal container 色板与 NavigationBar 胶囊高亮。
