@@ -4,6 +4,15 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
+// 签名口令保存在本机 local.properties（已被 .gitignore 排除，不进入远端仓库）
+def localProps = new Properties()
+def localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def dsaStorePass = localProps.getProperty("dsa.storePassword", "")
+def dsaKeyPass = localProps.getProperty("dsa.keyPassword", "")
+
 android {
     namespace 'com.dsa.mobile'
     compileSdk 35
@@ -13,16 +22,16 @@ android {
         applicationId "com.dsa.mobile"
         minSdk 26
         targetSdk 34
-        versionCode 50
-        versionName "2.12.16"
+        versionCode 56
+        versionName "2.12.22"
     }
 
     signingConfigs {
         release {
             storeFile file("../dsa-release.jks")
-            storePassword "REDACTED"
+            storePassword dsaStorePass
             keyAlias "dsa"
-            keyPassword "REDACTED"
+            keyPassword dsaKeyPass
         }
     }
 

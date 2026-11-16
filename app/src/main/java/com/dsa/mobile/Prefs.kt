@@ -483,6 +483,13 @@ object Prefs {
         sp(ctx).edit().putFloat("mascot_scale", v.coerceIn(0.6f, 1.8f)).apply()
     }
 
+    /** 宠物拖动位置（相对右下角默认位的 translation，px；默认 0,0），拖动后持久化 */
+    fun mascotPos(ctx: Context): Pair<Float, Float> =
+        sp(ctx).getFloat("mascot_pos_x", 0f) to sp(ctx).getFloat("mascot_pos_y", 0f)
+    fun saveMascotPos(ctx: Context, x: Float, y: Float) {
+        sp(ctx).edit().putFloat("mascot_pos_x", x).putFloat("mascot_pos_y", y).apply()
+    }
+
     /** v2.12.4 一次性迁移标记：升级后把仍停留在默认蓝白的用户切到玫瑰预设 */
     fun themeMigrated24(ctx: Context): Boolean = sp(ctx).getBoolean("theme_migrated_24", false)
     fun markThemeMigrated24(ctx: Context) {
@@ -729,6 +736,9 @@ object Prefs {
                 else -> data.put(key, value.toString())
             }
         }
+        // 业务数据兜底：自选股列表 / 历史报告（全量遍历已带，这里显式保证不被遗漏）
+        if (!data.has("watchlist")) data.put("watchlist", sp(ctx).getString("watchlist", "[]"))
+        if (!data.has("history")) data.put("history", sp(ctx).getString("history", "[]"))
         root.put("data", data)
         return root
     }

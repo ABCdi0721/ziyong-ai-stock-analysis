@@ -86,6 +86,21 @@ object MascotHelper {
         mascot.scaleX = baseScale
         mascot.scaleY = baseScale
 
+        fun clampTranslation() {
+            val w = mascot.width.coerceAtLeast(1)
+            val h = mascot.height.coerceAtLeast(1)
+            val cw = container.width.coerceAtLeast(w)
+            val ch = container.height.coerceAtLeast(h)
+            mascot.translationX = mascot.translationX.coerceIn(-(cw - w).toFloat(), 0f)
+            mascot.translationY = mascot.translationY.coerceIn(-(ch - h).toFloat(), 0f)
+        }
+
+        // 恢复上次拖动位置（相对右下角默认位的 translation）；布局完成后再夹取到容器内
+        val (savedX, savedY) = Prefs.mascotPos(activity)
+        mascot.translationX = savedX
+        mascot.translationY = savedY
+        mascot.post { clampTranslation() }
+
         // ---- 手势状态 ----
         var currentScale = baseScale
         var dragging = false
@@ -117,15 +132,6 @@ object MascotHelper {
                     pinching = false
                 }
             })
-
-        fun clampTranslation() {
-            val w = mascot.width.coerceAtLeast(1)
-            val h = mascot.height.coerceAtLeast(1)
-            val cw = container.width.coerceAtLeast(w)
-            val ch = container.height.coerceAtLeast(h)
-            mascot.translationX = mascot.translationX.coerceIn(-(cw - w).toFloat(), 0f)
-            mascot.translationY = mascot.translationY.coerceIn(-(ch - h).toFloat(), 0f)
-        }
 
         mascot.setOnLongClickListener {
             dragging = true
@@ -162,6 +168,8 @@ object MascotHelper {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     dragging = false
                     pinching = false
+                    // 拖动结束后持久化当前位置，下次进入沿用
+                    Prefs.saveMascotPos(activity, mascot.translationX, mascot.translationY)
                 }
             }
             false
@@ -173,13 +181,15 @@ object MascotHelper {
         return mascot
     }
 
-    /** 三段 Q 弹：按压 → 过冲弹起 → 回落复位到当前缩放档位 */
+    /** 三段 Q 弹：按压 → 过冲弹起 → 回落复位到当前缩放档位；保留拖动后的平移位置 */
     private fun bounce(m: ImageView, ctx: android.content.Context, base: Float) {
         m.animate().cancel()
         m.clearAnimation()
         m.scaleX = base
         m.scaleY = base
-        m.translationY = 0f
+        // 记录弹跳起始的纵向平移，动画结束回到该位置，而不是清零回右下角
+        val startTy = m.translationY
+        val lift = -m.resources.displayMetrics.density * 10f
 
         val down = AnimatorSet().apply {
             playTogether(
@@ -192,7 +202,7 @@ object MascotHelper {
             playTogether(
                 ObjectAnimator.ofFloat(m, "scaleX", base * 0.88f, base * 1.18f),
                 ObjectAnimator.ofFloat(m, "scaleY", base * 0.88f, base * 1.18f),
-                ObjectAnimator.ofFloat(m, "translationY", 0f, -m.resources.displayMetrics.density * 10f)
+                ObjectAnimator.ofFloat(m, "translationY", startTy, startTy + lift)
             )
             duration = 200
             interpolator = android.view.animation.OvershootInterpolator(1.6f)
@@ -201,7 +211,7 @@ object MascotHelper {
             playTogether(
                 ObjectAnimator.ofFloat(m, "scaleX", base * 1.18f, base),
                 ObjectAnimator.ofFloat(m, "scaleY", base * 1.18f, base),
-                ObjectAnimator.ofFloat(m, "translationY", -m.resources.displayMetrics.density * 10f, 0f)
+                ObjectAnimator.ofFloat(m, "translationY", startTy + lift, startTy)
             )
             duration = 140
         }
@@ -211,7 +221,7 @@ object MascotHelper {
                 override fun onAnimationEnd(animation: Animator) {
                     m.scaleX = base
                     m.scaleY = base
-                    m.translationY = 0f
+                    m.translationY = startTy
                 }
             })
             start()

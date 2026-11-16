@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.12.18：底部 dock 选中项磨砂玻璃圆角胶囊（随页面滑动实时平移）。
+     半透白玻璃叠层 + 顶部高光 + 细亮边；后方模糊透出由外层 DockGlassBar 快照层统一提供。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#38FFFFFF" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#26FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:type="linear" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="1dp" android:color="?attr/dsaGlassStroke" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+</layer-list>

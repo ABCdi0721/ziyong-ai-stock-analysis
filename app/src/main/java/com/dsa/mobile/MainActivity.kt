@@ -2,37 +2,34 @@ package com.dsa.mobile
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.ScrollView
-import androidx.core.widget.NestedScrollView
-import androidx.recyclerview.widget.RecyclerView
+import android.widget.TextView
+import androidx.core.view.WindowCompat
 import androidx.core.view.doOnLayout
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import com.dsa.mobile.databinding.ActivityMainBinding
 import com.dsa.mobile.glass.DockGlassBar
-import com.dsa.mobile.glass.DockSnapshot
 import com.dsa.mobile.glass.setGlassContent
 import com.google.android.material.color.MaterialColors
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.ImageBitmap
 
 /**
  * 主界面（v2.12.7）
  *
  * 页面容器改为 ViewPager2：左右拖动时当前页与相邻页同屏联动平移（能看到下一页画面），
  * 松手按位移/速度吸附或回弹，全部由 ViewPager2 原生手势处理（1:1 跟手）。
- * 底部 dock 改为自绘指示胶囊，跟随 onPageScrolled 的浮点进度实时平移，与页面完全同步。
+ * 底部 dock 为自绘指示胶囊，跟随 onPageScrolled 的浮点进度实时平移，与页面完全同步。
+ *
+ * v2.12.21：dock 背景改为透明叠层，不再抓取后方内容快照位图；下方 pager 真实页面由视图层级
+ * 直接透出，拖动 / 切页实时跟随，无快照帧滞后与旧帧残留。
  */
 class MainActivity : BaseActivity() {
 
@@ -40,11 +37,17 @@ class MainActivity : BaseActivity() {
     private var lastThemeKey: String? = null
 
     private lateinit var icons: List<ImageView>
+    private lateinit var labels: List<TextView>
     private var dockItems: List<android.view.View> = emptyList()
     private var pillFraction = 0f
 
-    /** dock 后方内容快照（Compose state，写入后触发玻璃层重组）；null 表示首帧尚未捕获 */
-    private var dockSnapshot by mutableStateOf<ImageBitmap?>(null)
+    /** 着色缓存：拖动过程中只在选中格变化时刷新图标/文字，颜色按主题取一次 */
+    private var dockSelected = -1
+    private var dockOnColor = 0
+    private var dockOffColor = 0
+
+    /** 胶囊宽度：布局完成后按格宽算一次冻结，滚动帧内不再重设 layoutParams，避免反复 requestLayout */
+    private var pillWidth = 0f
 
     /** 底部四个页签的顺序（左→右），与 ViewPager2 的 position 一一对应 */
     private val pageCount = 4
@@ -55,6 +58,15 @@ class MainActivity : BaseActivity() {
         supportActionBar?.hide()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // v2.12.22：edge-to-edge，壁纸铺满状态栏区域；根布局顶部按状态栏高度避让，避免页内标题被状态栏图标压住
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val sbRes = resources.getIdentifier("status_bar_height", "dimen", "android")
+        val sbH = if (sbRes > 0) resources.getDimensionPixelSize(sbRes) else 0
+        binding.root.setPadding(
+            binding.root.paddingLeft, sbH,
+            binding.root.paddingRight, binding.root.paddingBottom
+        )
 
         // v2.8.0：主界面应用自定义背景图片（透明度/模糊按设置）
         binding.root.post { ThemeManager.applyBgToRoot(binding.root, this) }
@@ -86,14 +98,11 @@ class MainActivity : BaseActivity() {
         binding.pager.offscreenPageLimit = 1
         // 「无动画」模式下不接管拖动，点击瞬时切换（与既有设置含义一致）
         binding.pager.isUserInputEnabled = Prefs.switchAnim(this) != "none"
-        // dock 宿主把底部区域的横向滑动转交给 pager，点击仍留给页签
-        binding.dock.pager = binding.pager
         binding.pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
                 // 浮点页索引：0 → 1 的整个拖动过程都连续变化，dock 胶囊按同一进度平移
                 pillFraction = position + positionOffset
                 updateDock(pillFraction)
-                // 拖动过程不重抓快照（避免反复隐藏 dock 造成闪烁）；停稳后由 onPageSelected 抓一次
                 if (Prefs.switchAnim(this@MainActivity) == "slide_fade") {
                     applyPageAlpha(position, positionOffset)
                 }
@@ -102,49 +111,49 @@ class MainActivity : BaseActivity() {
             override fun onPageSelected(position: Int) {
                 resetPageAlpha()
                 updateDock(position.toFloat())
-                binding.pager.post {
-                    attachScrollSnapshotListeners(binding.pager)
-                    // 再等一帧：新页内容上屏后强制重抓快照，避免旧页背景残留在玻璃层；
-                    // 同时按 pager 最终页签再校正一次胶囊，覆盖动画尾部可能残留的旧滚动进度
-                    binding.pager.post {
-                        updateDock(binding.pager.currentItem.toFloat())
-                        refreshDockSnapshot(force = true)
-                    }
-                }
-            }
-
-            override fun onPageScrollStateChanged(state: Int) {
-                // 手势 / 翻页动画停稳后，按 pager 最终页签强制校正胶囊位置，
-                // 兜住快速 fling 时尾部旧滚动回调把胶囊拉回上一格的情况
-                if (state == ViewPager2.SCROLL_STATE_IDLE) {
-                    updateDock(binding.pager.currentItem.toFloat())
-                }
             }
         })
+        // 底层冗余通道：直接监听 pager 内部 RecyclerView 滚动，按像素偏移独立算进度驱动胶囊，
+        // 不依赖 OnPageChangeCallback 的回调时机，保证拖动过程逐帧跟手。
+        attachPagerScrollFallback()
+    }
+
+    /** 取 pager 内部 RecyclerView，挂底层滚动监听；onScrolled 每像素触发，独立计算浮点页索引 */
+    private fun attachPagerScrollFallback() {
+        binding.pager.post {
+            val rv = binding.pager.getChildAt(0) as? RecyclerView
+            rv?.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
+                    val first = lm.findFirstVisibleItemPosition()
+                    if (first < 0) return
+                    val firstView = lm.findViewByPosition(first) ?: return
+                    val pageW = recyclerView.width.toFloat()
+                    if (pageW <= 0f) return
+                    val offsetPx = -firstView.left
+                    val frac = first + offsetPx / pageW
+                    updateDock(frac)
+                }
+            })
+        }
     }
 
     // ------------------------- 底部 dock -------------------------
 
     private fun setupDock() {
-        // 真液态玻璃：背景层为后方内容快照位图，叠库自带的模糊/折射/高光；胶囊平移与图标着色不变。
+        // 透明玻璃栏：下方 pager 真实页面直接透出，胶囊平移与图标着色不变。
         binding.dockGlass.setGlassContent(this) { colors ->
             DockGlassBar(
-                snapshot = dockSnapshot,
                 colors = colors,
                 blurEnabled = Prefs.themeBgBlurOn(this@MainActivity),
                 modifier = androidx.compose.ui.Modifier.fillMaxSize()
             ) {}
         }
-        // 首帧布局完成后抓一次快照；后续布局变化由切页/滚动空闲回调触发，避免重复隐藏 dock
-        var layoutCaptured = false
-        binding.root.doOnLayout {
-            if (!layoutCaptured) {
-                layoutCaptured = true
-                refreshDockSnapshot()
-            }
-        }
         icons = listOf(
             binding.dockIcon0, binding.dockIcon1, binding.dockIcon2, binding.dockIcon3
+        )
+        labels = listOf(
+            binding.dockLabel0, binding.dockLabel1, binding.dockLabel2, binding.dockLabel3
         )
         dockItems = listOf(
             binding.dockItem0, binding.dockItem1, binding.dockItem2, binding.dockItem3
@@ -158,8 +167,12 @@ class MainActivity : BaseActivity() {
             }
         }
         // 首次 layout 与尺寸变化（旋转/主题重建）后按当前页重新定位胶囊
-        binding.dockItems.doOnLayout { updateDock(pillFraction) }
+        binding.dockItems.doOnLayout {
+            layoutDockPill()
+            updateDock(pillFraction)
+        }
         binding.dockItems.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            layoutDockPill()
             updateDock(pillFraction)
         }
         // 首帧按 pager 当前页定位胶囊，避免恢复 / 重建后胶囊停在默认第 1 格
@@ -169,58 +182,18 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    /** 重新捕获 dock 后方内容快照，刷新玻璃背景层（异步：PixelCopy 回调内写状态）。
-     *  @param force 切页等明确场景强制刷新，跳过节流；捕获进行中则排队，结束后补抓一次 */
-    private var lastCaptureAt = 0L
-    private var pendingCapture = false
-    private fun refreshDockSnapshot(force: Boolean = false) {
-        if (binding.dock.width <= 0) return
-        val now = System.currentTimeMillis()
-        if (!force && now - lastCaptureAt < 1500) return
-        lastCaptureAt = now
-        // 只隐藏全局宠物悬浮层；dock 胶囊与图标保持可见，避免捕获瞬间 alpha 0→1 造成显隐闪烁。
-        // 快照里带入的胶囊/图标会被玻璃模糊层柔化，前景清晰图标再叠在其上。
-        val hidden = listOf(binding.mascotLayer)
-        if (DockSnapshot.isCapturing()) pendingCapture = true
-        // 仅当新快照成功返回才替换；捕获进行中 / 失败返回 null 时保留上一张快照，避免背景瞬间置空造成闪烁
-        DockSnapshot.captureWindow(this, binding.dock, hidden) { bmp ->
-            if (bmp != null) {
-                dockSnapshot = bmp
-                pendingCapture = false
-            } else if (pendingCapture) {
-                pendingCapture = false
-                binding.root.postDelayed({ refreshDockSnapshot(force = true) }, 120)
-            }
+    /** 布局完成后按格宽算一次胶囊宽度并冻结；滚动帧内不再改 layoutParams */
+    private fun layoutDockPill() {
+        val itemsWidth = binding.dockItems.width
+        if (itemsWidth <= 0) return
+        val itemWidth = itemsWidth.toFloat() / pageCount
+        val pw = (itemWidth - dp(6) * 2f).coerceAtLeast(dp(48).toFloat())
+        if (binding.dockPill.layoutParams.width != pw.toInt()) {
+            val lp = binding.dockPill.layoutParams
+            lp.width = pw.toInt()
+            binding.dockPill.layoutParams = lp
         }
-    }
-
-    /** 滚动停止后延迟重抓快照；滚动持续时不断重置，确保只在空闲后抓一次（避免滚动中反复隐藏 dock 闪烁） */
-    private var idleSnapshotRunnable: Runnable? = null
-    private fun scheduleIdleSnapshot() {
-        idleSnapshotRunnable?.let { binding.root.removeCallbacks(it) }
-        val r = Runnable { refreshDockSnapshot() }
-        idleSnapshotRunnable = r
-        binding.root.postDelayed(r, 250)
-    }
-
-    /** 递归给当前页内的可滚动容器挂快照刷新监听（大盘 ScrollView / 自选·我的 RecyclerView 等） */
-    private fun attachScrollSnapshotListeners(root: View) {
-        when (root) {
-            is ScrollView -> root.setOnScrollChangeListener { _, _, _, _, _ -> scheduleIdleSnapshot() }
-            is NestedScrollView -> root.setOnScrollChangeListener { _, _, _, _, _ -> scheduleIdleSnapshot() }
-            is RecyclerView -> {
-                // 先清空旧监听，避免反复挂接导致监听器累积、滚动时重复触发快照刷新
-                root.clearOnScrollListeners()
-                root.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                    override fun onScrollStateChanged(rv: RecyclerView, state: Int) {
-                        if (state == RecyclerView.SCROLL_STATE_IDLE) refreshDockSnapshot()
-                    }
-                })
-            }
-        }
-        if (root is ViewGroup) {
-            for (i in 0 until root.childCount) attachScrollSnapshotListeners(root.getChildAt(i))
-        }
+        pillWidth = pw
     }
 
     /** fraction 为浮点页索引（如 1.42 表示停在第 2 页往第 3 页拖了 42%） */
@@ -230,25 +203,24 @@ class MainActivity : BaseActivity() {
         val itemsWidth = binding.dockItems.width
         if (itemsWidth <= 0) return
         val itemWidth = itemsWidth.toFloat() / pageCount
-        val pillWidth = binding.dockPill.width.toFloat().let { if (it > 0f) it else dp(64).toFloat() }
+        if (pillWidth <= 0f) layoutDockPill()
+        // 每帧按同一浮点进度平移胶囊，与页面 1:1 跟手；滚动帧内不重设 layoutParams，避免反复 requestLayout
         binding.dockPill.translationX = itemWidth * fraction + (itemWidth - pillWidth) / 2f
 
-        // 图标：就近高亮（拖动过半即切到下一项），选中白 / 未选主题次要文字色
+        // 高亮只在选中格变化时刷新；拖动过半才切到下一项，选中主色 / 未选主题次要文字色
         val selected = fraction.roundToIntSafe()
-        val on = Color.WHITE
-        val off = MaterialColors.getColor(
-            binding.root, R.attr.dsaText2, 0xFF8A8A8E.toInt()
-        )
+        if (selected == dockSelected) return
+        dockSelected = selected
+        if (dockOnColor == 0) {
+            dockOnColor = MaterialColors.getColor(binding.root, R.attr.dsaPrimary, 0xFF1A73E8.toInt())
+            dockOffColor = MaterialColors.getColor(binding.root, R.attr.dsaText2, 0xFF8A8A8E.toInt())
+        }
         icons.forEachIndexed { index, icon ->
-            icon.setColorFilter(if (index == selected) on else off)
+            icon.setColorFilter(if (index == selected) dockOnColor else dockOffColor)
         }
-        // 仅当前页签处于选中态：逐项复位按压/选中状态，避免快速连点或动画过程中多格残留高亮
-        dockItems.forEachIndexed { index, view ->
-            view.isSelected = index == selected
-            view.isPressed = false
+        labels.forEachIndexed { index, label ->
+            label.setTextColor(if (index == selected) dockOnColor else dockOffColor)
         }
-        binding.dockPill.invalidate()
-        binding.dockItems.invalidate()
     }
 
     private fun Float.roundToIntSafe(): Int {
@@ -283,10 +255,6 @@ class MainActivity : BaseActivity() {
             recreate()
         } else {
             lastThemeKey = key
-            binding.root.post {
-                attachScrollSnapshotListeners(binding.root)
-                refreshDockSnapshot()
-            }
         }
     }
 }

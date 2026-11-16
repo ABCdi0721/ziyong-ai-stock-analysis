@@ -25,12 +25,13 @@ class HistoryFragment : Fragment() {
 
     private var all: List<HistoryReport> = emptyList()
     private var query = ""
-    private var days = 0                 // 0=全部时间，1=今天，7=近7天，30=近30天
+    private var days = 0                 // 0=全部时间，1=今天，7=近7天，30=近30天，-15=超过15天
     private var sortKey = 0              // 0=时间，1=评分，2=信号
     private var desc = true              // true=降序（新→旧 / 高分→低分 / 买入→卖出）
+    private var codeFilter = ""          // 从个股详情页进入时固定只看该股票
 
-    private val dayLabels = listOf("全部时间", "今天", "近 7 天", "近 30 天")
-    private val dayValues = listOf(0, 1, 7, 30)
+    private val dayLabels = listOf("全部时间", "今天", "近 7 天", "近 30 天", "超过 15 天")
+    private val dayValues = listOf(0, 1, 7, 30, -15)
     private val sortLabels = listOf("按时间", "按评分", "按信号")
     private val orderLabels = listOf("降序", "升序")
 
@@ -39,6 +40,7 @@ class HistoryFragment : Fragment() {
     ): View {
         val b = FragmentHistoryBinding.inflate(inflater, container, false)
         binding = b
+        codeFilter = arguments?.getString("code").orEmpty()
         setupBar(b)
         setupFilters(b)
         return b.root
@@ -110,7 +112,12 @@ class HistoryFragment : Fragment() {
 
         var list = all
 
-        // ① 关键词：股票名称或代码
+        // ① 固定股票筛选（从个股详情页进入）
+        if (codeFilter.isNotEmpty()) {
+            list = list.filter { it.code == codeFilter }
+        }
+
+        // ② 关键词：股票名称或代码
         if (query.isNotEmpty()) {
             val q = query.lowercase()
             list = list.filter {
@@ -118,13 +125,19 @@ class HistoryFragment : Fragment() {
             }
         }
 
-        // ② 时间范围
+        // ③ 时间范围：days>0 近 N 天；days<0 早于 N 天前（超过 15 天）
         if (days > 0) {
             val today = LocalDate.now()
             val from = today.minusDays((days - 1).toLong())
             list = list.filter {
                 val d = parseDate(it.date) ?: return@filter false
                 !d.isBefore(from) && !d.isAfter(today)
+            }
+        } else if (days < 0) {
+            val cutoff = LocalDate.now().minusDays((-days).toLong())
+            list = list.filter {
+                val d = parseDate(it.date) ?: return@filter false
+                d.isBefore(cutoff)
             }
         }
 

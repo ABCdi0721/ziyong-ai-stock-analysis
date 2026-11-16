@@ -178,7 +178,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:lineSpacingExtra="4dp"
-            android:text="备份内容：数据源 API 配置、新闻检索 API 配置、AI 模型配置，以及主题、标签、自选股、历史选股等基础设置。\n\n坚果云请在「账户信息 → 安全选项 → 第三方应用授权」生成授权码，账号填写登录邮箱；恢复将覆盖本机当前设置，建议先备份一次。"
+            android:text="备份内容：数据源 API 配置、新闻检索 API 配置、AI 模型配置，以及主题、标签、已添加的自选股列表、历史分析报告、历史选股等基础设置；恢复时会一并还原自选股。\n\n坚果云请在「账户信息 → 安全选项 → 第三方应用授权」生成授权码，账号填写登录邮箱；恢复将覆盖本机当前设置，建议先备份一次。"
             android:textColor="?attr/dsaText2"
             android:textSize="12sp" />
     </LinearLayout>

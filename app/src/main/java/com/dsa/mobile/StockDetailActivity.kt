@@ -50,6 +50,7 @@ class StockDetailActivity : BaseActivity() {
         binding.btnBacktest.setOnClickListener { openBacktest() }
         binding.btnNewsAnalyze.setOnClickListener { startNewsAnalyze() }
         binding.btnBoardRate.setOnClickListener { openBoardRate() }
+        binding.btnHistoryReport.setOnClickListener { openHistory() }
         // v2.12.0 快捷选择 AI 模型（与设置页共用同一份配置）
         binding.llmModelRow.setOnClickListener { showLlmPicker() }
         refreshLlmLabel()
@@ -770,6 +771,14 @@ class StockDetailActivity : BaseActivity() {
     }
 
     /** v2.10.0 封板率预测：跳转独立页面，数据在页面内拉取 */
+    private fun openHistory() {
+        startActivity(
+            Intent(this, HistoryActivity::class.java)
+                .putExtra("code", code)
+                .putExtra("name", quote?.name ?: code)
+        )
+    }
+
     private fun openBoardRate() {
         val nm = quote?.name ?: code
         startActivity(

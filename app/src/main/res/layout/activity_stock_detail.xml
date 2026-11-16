@@ -568,21 +568,38 @@
             app:backgroundTint="?attr/dsaPrimary" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_news_analyze"
+            android:id="@+id/btn_history_report"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="16dp"
             android:layout_marginTop="8dp"
-            android:text="新闻分析（检索 + 情绪评分）"
+            android:text="查看该股的历史分析报告"
             app:backgroundTint="?attr/dsaPrimary" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_ai_analyze"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:text="生成 AI 分析报告"
-            app:backgroundTint="?attr/dsaPrimary" />
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_news_analyze"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="新闻分析"
+                app:backgroundTint="?attr/dsaPrimary" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_ai_analyze"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="简单分析"
+                app:backgroundTint="?attr/dsaPrimary" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/detail_loading"
