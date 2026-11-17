@@ -5,12 +5,12 @@ import org.json.JSONObject
 /** 腾讯行情与K线接口（免费，无需 Key） */
 object TencentApi {
 
-    /** 股票 / ETF 代码 → 腾讯前缀；5 开头为沪市 ETF/基金，15/16/18 为深市 ETF */
+    /** 股票 / ETF 代码 → 腾讯前缀；5 开头为沪市 ETF/基金，15/16/18 为深市 ETF；920 为北交所新号段 */
     fun symbol(code: String): String {
         val c = code.trim().lowercase().removePrefix("sh").removePrefix("sz").removePrefix("bj")
         return when {
+            c.startsWith("920") || c.startsWith("4") || c.startsWith("8") -> "bj$c"
             c.startsWith("6") || c.startsWith("9") || c.startsWith("5") -> "sh$c"
-            c.startsWith("4") || c.startsWith("8") -> "bj$c"
             else -> "sz$c"
         }
     }

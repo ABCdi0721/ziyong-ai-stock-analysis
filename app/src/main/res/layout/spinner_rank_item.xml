@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.12.25：排行榜数据源下拉「收起态」选中项，背景透明融入卡片；下拉弹出项仍用 spinner_item -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:gravity="center_vertical"
+    android:textSize="11sp"
+    android:textStyle="bold"
+    android:textColor="?attr/dsaText"
+    android:background="@android:color/transparent"
+    android:ellipsize="end"
+    android:singleLine="true" />

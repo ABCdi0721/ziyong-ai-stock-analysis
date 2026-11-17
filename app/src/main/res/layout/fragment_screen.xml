@@ -121,28 +121,71 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <!-- 标题行：排行榜 + 数据源切换 -->
+                <!-- 标题行：排行榜 + 数据源下拉（左侧）｜刷新档位 + 手动刷新（右侧） -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="排行榜"
-                        android:textColor="?attr/dsaText"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <Spinner
-                        android:id="@+id/rank_src_spinner"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:ellipsize="end"
+                            android:text="排行榜"
+                            android:textColor="?attr/dsaText"
+                            android:textSize="19sp"
+                            android:textStyle="bold" />
+
+                        <Spinner
+                            android:id="@+id/rank_src_spinner"
+                            android:layout_width="104dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:spinnerMode="dropdown" />
+                    </LinearLayout>
+
+                    <!-- v2.12.25：自动刷新档位（点按弹出六档单选，与大盘页同一套口径） -->
+                    <TextView
+                        android:id="@+id/rank_refresh_mode"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:minWidth="96dp"
-                        android:spinnerMode="dropdown" />
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_pill_surface"
+                        android:tag="dsa_tag"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingHorizontal="9dp"
+                        android:paddingVertical="6dp"
+                        android:text="每次进入"
+                        android:textColor="?attr/dsaPrimary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <ProgressBar
+                        android:id="@+id/rank_refresh_spin"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_marginStart="6dp"
+                        android:visibility="gone" />
+
+                    <ImageView
+                        android:id="@+id/rank_refresh_btn"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="6dp"
+                        android:padding="6dp"
+                        android:background="@drawable/bg_pill_surface"
+                        android:src="@drawable/ic_refresh"
+                        android:contentDescription="刷新" />
                 </LinearLayout>
 
                 <!-- 类型 Tab：横向可滑动 -->

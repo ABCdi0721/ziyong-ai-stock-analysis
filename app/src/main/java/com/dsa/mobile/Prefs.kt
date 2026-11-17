@@ -30,6 +30,29 @@ object Prefs {
         sp(ctx).edit().putLong("market_last_refresh", time).apply()
     }
 
+    // ---- v2.12.25 排行榜：数据源选择 + 自动刷新档位 ----
+    /** 榜单数据源：THS=同花顺 / EM=东方财富（默认）/ TX=腾讯 */
+    fun rankSource(ctx: Context): String = sp(ctx).getString("rank_source", "EM") ?: "EM"
+
+    fun saveRankSource(ctx: Context, source: String) {
+        sp(ctx).edit().putString("rank_source", source).apply()
+    }
+
+    /** entry=每次进入；30/60/120/180=间隔分钟；never=从不（只手动刷新） */
+    fun rankRefreshMode(ctx: Context): String =
+        sp(ctx).getString("rank_refresh_mode", "entry") ?: "entry"
+
+    fun saveRankRefreshMode(ctx: Context, mode: String) {
+        sp(ctx).edit().putString("rank_refresh_mode", mode).apply()
+    }
+
+    /** 排行榜上次联网刷新成功的时间戳（毫秒），0 表示从未成功刷新过 */
+    fun rankLastRefresh(ctx: Context): Long = sp(ctx).getLong("rank_last_refresh", 0L)
+
+    fun setRankLastRefresh(ctx: Context, time: Long) {
+        sp(ctx).edit().putLong("rank_last_refresh", time).apply()
+    }
+
     // ---- v2.8.2 多 AI 模型配置 ----
     /** 一套 AI 模型配置 */
     data class LlmProfile(

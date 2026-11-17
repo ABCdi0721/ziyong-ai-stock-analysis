@@ -2,6 +2,7 @@ package com.dsa.mobile
 
 import android.content.Context
 import android.util.Log
+import org.json.JSONObject
 
 /**
  * TradingAgents 多智能体分析流水线（Kotlin 移植版）
@@ -21,6 +22,8 @@ object MultiAgent {
         val name: String,
         val date: String,
         val fundamentals: String,
+        /** v2.12.25：该股所属行业与概念板块（本地取数，不调用模型，仅列名不分析） */
+        val sectors: String,
         val sentiment: String,
         val newsImpact: String,
         val technical: String,
@@ -66,6 +69,9 @@ object MultiAgent {
             appendLine()
             appendLine("## 基本面分析师")
             appendLine(fundamentals.ifBlank { "数据不足，本节未生成。" })
+            appendLine()
+            appendLine("## 所属板块")
+            appendLine(sectors.ifBlank { "板块归属数据暂未取得。" })
             appendLine()
             appendLine("## 情绪分析师")
             appendLine(sentiment.ifBlank { "数据不足，本节未生成。" })
@@ -369,6 +375,31 @@ object MultiAgent {
 
     // ===================== 流水线 =====================
 
+    /**
+     * v2.12.25：本地取该股所属行业与概念板块（不调用大模型，仅列名、不做分析，节省 token）。
+     * 数据源：东方财富个股快照 f127=行业板块、f129=概念板块（逗号分隔）；失败返回空串。
+     */
+    private fun fetchSectors(code: String): String {
+        val sec = EastmoneyApi.secid(code) ?: return ""
+        return try {
+            val url = "https://push2.eastmoney.com/api/qt/stock/get?secid=$sec&fields=f127,f129"
+            val d = JSONObject(Http.get(url, mapOf("Referer" to "https://quote.eastmoney.com/")))
+                .optJSONObject("data") ?: return ""
+            val industry = d.optString("f127", "").trim()
+            val concepts = d.optString("f129", "")
+                .split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct().take(6)
+            buildString {
+                if (industry.isNotBlank()) append("行业：").append(industry)
+                if (concepts.isNotEmpty()) {
+                    if (isNotEmpty()) append("；")
+                    append("概念：").append(concepts.joinToString("、"))
+                }
+            }.toString()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
     fun run(
         ctx: Context,
         code: String,
@@ -485,7 +516,11 @@ object MultiAgent {
         if (newsImpact.isBlank()) { newsImpact = localNews(news, newsStatus); degraded++ }
         if (technical.isBlank()) { technical = localTechnical(snap); degraded++ }
 
+        // v2.12.25：所属板块环节——本地取数，不调用模型、不做分析，不计入本地兜底计数
+        val sectors = fetchSectors(code)
+
         onStage("基本面分析师", "完成", fundamentals)
+        onStage("所属板块", "完成", sectors)
         onStage("情绪分析师", "完成", sentiment)
         onStage("新闻分析师", "完成", newsImpact)
         onStage("技术分析师", "完成", technical)
@@ -539,7 +574,7 @@ object MultiAgent {
 
         return Result(
             code, name, java.time.LocalDate.now().toString(),
-            fundamentals, sentiment, newsImpact, technical,
+            fundamentals, sectors, sentiment, newsImpact, technical,
             bull, bear, trader, risk, portfolio, degraded
         )
     }

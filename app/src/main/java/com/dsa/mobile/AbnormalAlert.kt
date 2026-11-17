@@ -39,6 +39,7 @@ object AbnormalAlert {
         return when {
             c.startsWith("300") || c.startsWith("301") -> "sz399006"   // 创业板指
             c.startsWith("688") || c.startsWith("689") -> "sh000688"   // 科创 50
+            c.startsWith("920") || c.startsWith("4") || c.startsWith("8") -> null  // 北交所无对应基准
             c.startsWith("6") || c.startsWith("9") -> "sh000001"       // 上证综指
             c.startsWith("0") || c.startsWith("2") || c.startsWith("3") -> "sz399001" // 深证成指
             else -> null                                                // 北交所等不适用

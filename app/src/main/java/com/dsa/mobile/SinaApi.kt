@@ -10,12 +10,12 @@ import org.json.JSONObject
  */
 object SinaApi {
 
-    /** 股票代码 → 新浪前缀（sh600000 / sz000001 / bj430xxx；5 开头为沪市 ETF） */
+    /** 股票代码 → 新浪前缀（sh600000 / sz000001 / bj430xxx、bj920xxx；5 开头为沪市 ETF） */
     fun symbol(code: String): String {
         val c = code.trim().lowercase().removePrefix("sh").removePrefix("sz").removePrefix("bj")
         return when {
+            c.startsWith("920") || c.startsWith("4") || c.startsWith("8") -> "bj$c"
             c.startsWith("6") || c.startsWith("9") || c.startsWith("5") -> "sh$c"
-            c.startsWith("4") || c.startsWith("8") -> "bj$c"
             else -> "sz$c"
         }
     }

@@ -196,12 +196,12 @@ object TickFlowApi {
         return out
     }
 
-    /** 6 位代码 → TickFlow symbol（600000→600000.SH，000001→000001.SZ，830xxx→830xxx.BJ） */
+    /** 6 位代码 → TickFlow symbol（600000→600000.SH，000001→000001.SZ，830xxx/920xxx→.BJ） */
     fun tickSymbol(code: String): String {
         val c = code.trim()
         return when {
+            c.startsWith("920") || c.startsWith("8") || c.startsWith("4") -> "$c.BJ"
             c.startsWith("6") || c.startsWith("9") || c.startsWith("5") -> "$c.SH"
-            c.startsWith("8") || c.startsWith("4") -> "$c.BJ"
             else -> "$c.SZ"
         }
     }

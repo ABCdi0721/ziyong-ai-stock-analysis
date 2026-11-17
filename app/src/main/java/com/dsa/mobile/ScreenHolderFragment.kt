@@ -21,6 +21,17 @@ class ScreenHolderFragment : Fragment() {
 
     private var currentType = RankBoardApi.Type.HOT
     private var currentSource = RankBoardApi.Source.EM
+    private var loading = false
+
+    /** v2.12.25：自动刷新档位（与大盘页同一套六档口径） */
+    private val refreshModes = listOf(
+        "entry" to "每次进入",
+        "30" to "30分钟",
+        "60" to "1小时",
+        "120" to "2小时",
+        "180" to "3小时",
+        "never" to "从不"
+    )
 
     private var typeViews: Map<RankBoardApi.Type, TextView> = emptyMap()
     private var rankList: LinearLayout? = null
@@ -63,15 +74,20 @@ class ScreenHolderFragment : Fragment() {
             v.setOnClickListener {
                 if (currentType != type) {
                     currentType = type
-                    loadRank()
+                    loadRank(force = true)
                 }
             }
         }
 
-        // 数据源下拉：同花顺 / 东方财富 / 腾讯
+        // v2.12.25：恢复上次选择的数据源（持久化，杀进程重进不回退默认）
+        currentSource = runCatching {
+            RankBoardApi.Source.valueOf(Prefs.rankSource(requireContext()))
+        }.getOrDefault(RankBoardApi.Source.EM)
+
+        // 数据源下拉：同花顺 / 东方财富 / 腾讯；收起态用透明背景项，弹出项保留卡片底色
         val sources = RankBoardApi.Source.values()
         val srcAdapter = ArrayAdapter(
-            requireContext(), R.layout.spinner_item, sources.map { it.label }
+            requireContext(), R.layout.spinner_rank_item, sources.map { it.label }
         )
         srcAdapter.setDropDownViewResource(R.layout.spinner_item)
         b.rankSrcSpinner.adapter = srcAdapter
@@ -83,14 +99,62 @@ class ScreenHolderFragment : Fragment() {
                 val s = sources.getOrNull(position) ?: return
                 if (s != currentSource) {
                     currentSource = s
-                    loadRank()
+                    Prefs.saveRankSource(requireContext(), s.name)
+                    loadRank(force = true)
                 }
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
+        // 自动刷新档位胶囊 + 手动刷新按钮
+        updateRefreshModeLabel()
+        b.rankRefreshMode.setOnClickListener { showRefreshModeDialog() }
+        b.rankRefreshBtn.setOnClickListener { loadRank(force = true) }
+
         refreshPills()
         loadRank()
+    }
+
+    private fun modeLabel(mode: String): String =
+        refreshModes.firstOrNull { it.first == mode }?.second ?: "每次进入"
+
+    /** 顶部档位胶囊显示当前档位 */
+    private fun updateRefreshModeLabel() {
+        val b = binding ?: return
+        b.rankRefreshMode.text = modeLabel(Prefs.rankRefreshMode(requireContext()))
+    }
+
+    /** 点按档位胶囊：弹单选对话框，选中即写入持久化配置 */
+    private fun showRefreshModeDialog() {
+        val ctx = context ?: return
+        val current = Prefs.rankRefreshMode(ctx)
+        val idx = refreshModes.indexOfFirst { it.first == current }.coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(ctx)
+            .setTitle("排行榜自动刷新")
+            .setSingleChoiceItems(refreshModes.map { it.second }.toTypedArray(), idx) { dialog, which ->
+                Prefs.saveRankRefreshMode(ctx, refreshModes[which].first)
+                updateRefreshModeLabel()
+                dialog.dismiss()
+                // 新档位若已到期，立即联网刷新；未到期保持当前数据
+                if (!loading && shouldAutoRefresh()) loadRank()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 按设置项判断现在是否该联网刷新：never 只允许首次初始化一次 */
+    private fun shouldAutoRefresh(): Boolean {
+        val ctx = context ?: return true
+        val mode = Prefs.rankRefreshMode(ctx)
+        val last = Prefs.rankLastRefresh(ctx)
+        return when (mode) {
+            "never" -> last <= 0L
+            "entry" -> true
+            else -> {
+                val interval = (mode.toLongOrNull() ?: 0L) * 60_000L
+                interval <= 0L || last <= 0L || System.currentTimeMillis() - last >= interval
+            }
+        }
     }
 
     private fun refreshPills() {
@@ -109,32 +173,44 @@ class ScreenHolderFragment : Fragment() {
         return c
     }
 
-    private fun loadRank() {
+    private fun loadRank(force: Boolean = false) {
         val b = binding ?: return
+        if (loading && !force) return
+        loading = true
+        b.rankRefreshSpin.visibility = View.VISIBLE
         refreshPills()
         b.rankStatus.text = "正在读取榜单…"
         val type = currentType
         val source = currentSource
         Thread {
-            val list = try {
-                RankBoardApi.fetch(type, source)
+            var list: List<RankBoardApi.RankItem> = emptyList()
+            var err: String? = null
+            try {
+                list = RankBoardApi.fetch(type, source)
             } catch (e: Exception) {
-                emptyList()
+                err = e.message ?: "加载失败"
             }
             val ctx = context
             activity?.runOnUiThread {
                 val bb = binding ?: return@runOnUiThread
+                loading = false
+                bb.rankRefreshSpin.visibility = View.GONE
                 if (ctx == null) return@runOnUiThread
-                renderRank(list)
+                if (err == null) Prefs.setRankLastRefresh(ctx, System.currentTimeMillis())
+                renderRank(list, err)
             }
         }.start()
     }
 
-    private fun renderRank(list: List<RankBoardApi.RankItem>) {
+    private fun renderRank(list: List<RankBoardApi.RankItem>, err: String? = null) {
         val b = binding ?: return
         val container = rankList ?: return
         container.removeAllViews()
-        b.rankStatus.text = if (list.isEmpty()) "暂无榜单数据，请稍后重试" else ""
+        b.rankStatus.text = when {
+            err != null -> "榜单加载失败：$err，点右上角刷新重试"
+            list.isEmpty() -> "暂无榜单数据，请稍后重试"
+            else -> ""
+        }
         val inflater = LayoutInflater.from(requireContext())
         list.forEach { item ->
             val ib = ItemRankBinding.inflate(inflater, container, false)
@@ -212,6 +288,9 @@ class ScreenHolderFragment : Fragment() {
         super.onResume()
         val b = binding ?: return
         ThemeManager.applyTagAlphaTree(b.root, requireContext())
+        updateRefreshModeLabel()
+        // v2.12.25：是否自动刷新由档位决定；未到时间只保留上次数据，手动刷新随时可用
+        if (!loading && shouldAutoRefresh()) loadRank()
     }
 
     override fun onDestroyView() {

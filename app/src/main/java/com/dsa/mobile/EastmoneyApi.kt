@@ -87,9 +87,10 @@ object EastmoneyApi {
         return Pair(list, total)
     }
 
-    /** 个股代码 → 东财 secid（用于跳转，未使用则返回 null） */
+    /** 个股代码 → 东财 secid（用于跳转，未使用则返回 null）；北交所 4/8/920 归市场号 0 */
     fun secid(code: String): String? {
         return when {
+            code.startsWith("920") || code.startsWith("4") || code.startsWith("8") -> "0.$code"
             code.startsWith("6") || code.startsWith("9") -> "1.$code"
             code.startsWith("0") || code.startsWith("2") || code.startsWith("3") -> "0.$code"
             else -> null
@@ -103,7 +104,11 @@ object EastmoneyApi {
      */
     fun fetchDailyKline(code: String, count: Int = 120): List<KLineBar> {
         val c = code.trim().lowercase().removePrefix("sh").removePrefix("sz").removePrefix("bj")
-        val sec = if (c.startsWith("6") || c.startsWith("9") || c.startsWith("5")) "1.$c" else "0.$c"
+        val sec = when {
+            c.startsWith("6") || c.startsWith("5") -> "1.$c"
+            c.startsWith("9") && !c.startsWith("920") -> "1.$c"   // 900 开头沪市 B 股
+            else -> "0.$c"                                        // 深市 / 北交所 4/8/920
+        }
         val url = "https://push2his.eastmoney.com/api/qt/stock/kline/get" +
             "?secid=$sec&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57" +
             "&klt=101&fqt=1&end=20500101&lmt=$count"

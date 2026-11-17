@@ -16,8 +16,8 @@ object TushareApi {
     fun tsCode(code: String): String {
         val c = code.trim().removePrefix("sh").removePrefix("sz").removePrefix("bj").uppercase()
         return when {
+            c.startsWith("920") || c.startsWith("4") || c.startsWith("8") -> "$c.BJ"
             c.startsWith("6") || c.startsWith("9") -> "$c.SH"
-            c.startsWith("4") || c.startsWith("8") -> "$c.BJ"
             else -> "$c.SZ"
         }
     }

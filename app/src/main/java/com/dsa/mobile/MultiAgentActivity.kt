@@ -11,7 +11,7 @@ import java.time.format.DateTimeFormatter
 
 /**
  * 多智能体分析页（TradingAgents 全链路）
- * 进度实时展示 9 个阶段，完成后自动保存历史报告并跳转报告页。
+ * 进度实时展示各阶段，完成后自动保存历史报告并跳转报告页。
  */
 class MultiAgentActivity : BaseActivity() {
 
@@ -21,7 +21,7 @@ class MultiAgentActivity : BaseActivity() {
     private var done = false
 
     private val stages = listOf(
-        "基本面分析师", "情绪分析师", "新闻分析师", "技术分析师",
+        "基本面分析师", "所属板块", "情绪分析师", "新闻分析师", "技术分析师",
         "多头研究员", "空头研究员", "交易员", "风险管理", "组合经理"
     )
     private val stageRows = mutableMapOf<String, TextView>()

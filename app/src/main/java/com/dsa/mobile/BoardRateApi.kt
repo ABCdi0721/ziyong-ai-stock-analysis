@@ -208,7 +208,7 @@ object BoardRateApi {
         return when {
             c.startsWith("300") || c.startsWith("301") -> 20.0
             c.startsWith("688") || c.startsWith("689") -> 20.0
-            c.startsWith("8") || c.startsWith("4") -> 30.0
+            c.startsWith("8") || c.startsWith("4") || c.startsWith("920") -> 30.0
             else -> 10.0
         }
     }
