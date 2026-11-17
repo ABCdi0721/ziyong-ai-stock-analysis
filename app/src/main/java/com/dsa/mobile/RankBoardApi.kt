@@ -1,11 +1,16 @@
 package com.dsa.mobile
 
 import org.json.JSONObject
+import java.util.concurrent.Executors
 
 /**
- * v2.12.23 选股页排行榜
+ * v2.12.23 选股页排行榜（v2.12.24 放开前 100 名、条目补现价/信号/评分）
  *
  * 四类榜单：热股榜 / 龙虎榜 / 板块热榜 / ETF热榜；数据源：同花顺 / 东方财富 / 腾讯。
+ *
+ * 条数口径：经实测东财 clist、龙虎榜 datacenter、腾讯批量行情单页 100 条均无截断、
+ * 未触发限流；日K兜底源（腾讯备用域 / 东财）并发拉取稳定，故一次性加载前 [TOP_N] 名，
+ * 不做分页。
  *
  * 免费公开接口现实口径：
  *  · 热股榜：东方财富人气/关注、同花顺 24h/今日；腾讯无公开热榜，按行情成交额口径回退排序。
@@ -31,11 +36,21 @@ object RankBoardApi {
     data class RankItem(
         val code: String,
         val name: String,
+        /** 副标题：个股为代码；板块为涨跌家数；ETF 为成交额 */
         val sub: String,
         val changePct: Double,
         val rank: Int,
-        val sourceLabel: String
+        val sourceLabel: String,
+        /** 现价（个股 / ETF 行情，0 表示无现价） */
+        val price: Double = 0.0,
+        /** 技术面中文信号（强烈买入/买入/观望/卖出/强烈卖出），空串表示不显示 */
+        val signal: String = "",
+        /** 技术面综合评分（0 表示不显示） */
+        val score: Int = 0
     )
+
+    /** 每类榜单展示条数（放开完整榜单，最多前 100 名） */
+    private const val TOP_N = 100
 
     private const val EM_CLIST = "https://push2.eastmoney.com/api/qt/clist/get"
     private const val EM_DATACENTER = "https://datacenter-web.eastmoney.com/api/data/v1/get"
@@ -61,7 +76,7 @@ object RankBoardApi {
                     val prev = merged[c]
                     merged[c] = if (prev == null) v else prev.copy(first = minOf(prev.first, v.first))
                 }
-                merged.entries.sortedBy { it.value.first }.take(8)
+                merged.entries.sortedBy { it.value.first }.take(TOP_N)
                     .map { it.key to it.value.second }
             }
             Source.EM -> {
@@ -70,11 +85,11 @@ object RankBoardApi {
                 val merged = LinkedHashMap<String, Int>()
                 em.forEach { (c, r) -> merged[c] = r }
                 focus.forEach { (c, r) -> merged[c] = minOf(merged[c] ?: r, r) }
-                merged.entries.sortedBy { it.value }.take(8).map { it.key to "" }
+                merged.entries.sortedBy { it.value }.take(TOP_N).map { it.key to "" }
             }
             Source.TX -> {
                 // 腾讯无公开热榜：按行情成交额口径取活跃个股，标签注明腾讯行情口径
-                emClistStocks(fid = "f6", pz = 8)
+                emClistStocks(fid = "f6", pz = TOP_N)
             }
         }
 
@@ -85,23 +100,22 @@ object RankBoardApi {
             emptyMap()
         }
 
-        return raw.mapIndexed { idx, (code, name0) ->
+        val base = raw.mapIndexed { idx, (code, name0) ->
             val q = quotes[code]
             val name = q?.name?.ifBlank { name0 } ?: name0
             val pct = q?.changePct ?: 0.0
-            val sub = buildString {
-                append(code)
-                if (q != null && q.price > 0) append("  ${String.format("%.2f", q.price)}")
-            }
+            val price = q?.price ?: 0.0
             RankItem(
                 code = code,
                 name = name.ifBlank { code },
-                sub = sub,
+                sub = code,
                 changePct = pct,
                 rank = idx + 1,
-                sourceLabel = source.label
+                sourceLabel = source.label,
+                price = price
             )
         }
+        return enrichStockSignals(base)
     }
 
     // ---------------- 龙虎榜 ----------------
@@ -128,7 +142,7 @@ object RankBoardApi {
         val u2 = "$EM_DATACENTER?reportName=RPT_DAILYBILLBOARD_DETAILS" +
             "&columns=ALL&filter=(TRADE_DATE%3D%27$latest%27)" +
             "&sortColumns=BILLBOARD_NET_AMT&sortTypes=-1" +
-            "&pageSize=30&pageNumber=1&source=WEB&client=WEB"
+            "&pageSize=$TOP_N&pageNumber=1&source=WEB&client=WEB"
         val arr = try {
             JSONObject(Http.get(u2, headers)).optJSONObject("result")?.optJSONArray("data")
         } catch (e: Exception) {
@@ -155,15 +169,29 @@ object RankBoardApi {
                 rank = out.size + 1,
                 sourceLabel = Source.EM.label + note
             )
-            if (out.size >= 8) break
         }
-        return out.values.toList()
+        val list = out.values.toList()
+
+        // 批量补现价 / 名称，再补技术面信号与评分
+        val quotes = try {
+            TencentApi.fetchQuotes(list.map { it.code })
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        val priced = list.map { it ->
+            val q = quotes[it.code]
+            it.copy(
+                price = q?.price ?: 0.0,
+                name = q?.name?.ifBlank { it.name } ?: it.name
+            )
+        }
+        return enrichStockSignals(priced)
     }
 
     // ---------------- 板块热榜 ----------------
 
     private fun fetchSector(source: Source): List<RankItem> {
-        val url = "$EM_CLIST?pn=1&pz=8&po=1&np=1&fltt=2&invt=2&fid=f3" +
+        val url = "$EM_CLIST?pn=1&pz=$TOP_N&po=1&np=1&fltt=2&invt=2&fid=f3" +
             "&fs=m:90+t:2&fields=f12,f14,f3,f104,f105"
         val arr = try {
             val json = JSONObject(Http.get(url, mapOf("Referer" to "https://quote.eastmoney.com/")))
@@ -194,7 +222,7 @@ object RankBoardApi {
     // ---------------- ETF热榜 ----------------
 
     private fun fetchEtf(source: Source): List<RankItem> {
-        val url = "$EM_CLIST?pn=1&pz=8&po=1&np=1&fltt=2&invt=2&fid=f6" +
+        val url = "$EM_CLIST?pn=1&pz=$TOP_N&po=1&np=1&fltt=2&invt=2&fid=f6" +
             "&fs=b:MK0021,b:MK0022,b:MK0023,b:MK0024" +
             "&fields=f12,f14,f2,f3,f6"
         val arr = try {
@@ -209,6 +237,7 @@ object RankBoardApi {
             val o = arr.optJSONObject(i) ?: continue
             val name = o.optString("f14", "")
             val pct = o.optDouble("f3", 0.0)
+            val price = o.optDouble("f2", 0.0)
             val amt = o.optDouble("f6", 0.0) / 1e8
             out += RankItem(
                 code = o.optString("f12", ""),
@@ -216,7 +245,8 @@ object RankBoardApi {
                 sub = "成交 ${String.format("%.2f", amt)} 亿",
                 changePct = pct,
                 rank = i + 1,
-                sourceLabel = Source.EM.label
+                sourceLabel = Source.EM.label,
+                price = price
             )
         }
         return out
@@ -241,5 +271,61 @@ object RankBoardApi {
             out += o.optString("f12", "") to o.optString("f14", "")
         }
         return out
+    }
+
+    /**
+     * 对个股条目并发补技术面信号与评分（与详情页"操作信号"同源，Analyzer 本地日K分析）。
+     * 8 线程并发；单只拉取 / 分析失败则保留空信号、0 分，不影响其余条目。
+     * 板块 / ETF 不调用本方法。
+     */
+    private fun enrichStockSignals(items: List<RankItem>): List<RankItem> {
+        if (items.isEmpty()) return items
+        val exec = Executors.newFixedThreadPool(8)
+        try {
+            val futures = items.map { item ->
+                exec.submit<Pair<String, Pair<String, Int>?>> { item.code to analyzeOne(item.code) }
+            }
+            val map = HashMap<String, Pair<String, Int>>()
+            futures.forEach { f ->
+                try {
+                    val (c, v) = f.get()
+                    if (v != null) map[c] = v
+                } catch (e: Exception) {
+                    // 单只失败跳过
+                }
+            }
+            return items.map {
+                val v = map[it.code]
+                it.copy(signal = v?.first ?: "", score = v?.second ?: 0)
+            }
+        } finally {
+            exec.shutdown()
+        }
+    }
+
+    /** 拉日K做快照分析，返回（中文信号, 评分）；失败返回 null */
+    private fun analyzeOne(code: String): Pair<String, Int>? {
+        if (!Regex("^\\d{6}$").matches(code)) return null
+        return try {
+            // 备用域 → 东财 → 腾讯主域 → 新浪：主域在部分网络被 WAF 拦截，优先走稳的源
+            val bars = try {
+                TencentApi.fetchDailyKlineAlt(code, 120)
+            } catch (e1: Exception) {
+                try {
+                    EastmoneyApi.fetchDailyKline(code, 120)
+                } catch (e2: Exception) {
+                    try {
+                        TencentApi.fetchDailyKline(code, 120)
+                    } catch (e3: Exception) {
+                        SinaApi.fetchDailyKline(code, 120)
+                    }
+                }
+            }
+            val r = Analyzer.analyze(bars, code)
+            val sig = Analyzer.SIGNAL_ZH[r.buySignal] ?: r.buySignal
+            sig to r.signalScore
+        } catch (e: Exception) {
+            null
+        }
     }
 }

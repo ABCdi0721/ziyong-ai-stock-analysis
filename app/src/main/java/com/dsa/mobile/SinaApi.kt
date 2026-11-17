@@ -10,11 +10,11 @@ import org.json.JSONObject
  */
 object SinaApi {
 
-    /** 股票代码 → 新浪前缀（sh600000 / sz000001 / bj430xxx） */
+    /** 股票代码 → 新浪前缀（sh600000 / sz000001 / bj430xxx；5 开头为沪市 ETF） */
     fun symbol(code: String): String {
         val c = code.trim().lowercase().removePrefix("sh").removePrefix("sz").removePrefix("bj")
         return when {
-            c.startsWith("6") || c.startsWith("9") -> "sh$c"
+            c.startsWith("6") || c.startsWith("9") || c.startsWith("5") -> "sh$c"
             c.startsWith("4") || c.startsWith("8") -> "bj$c"
             else -> "sz$c"
         }
@@ -26,6 +26,9 @@ object SinaApi {
         val url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_=/CN_MarketDataService.getKLineData" +
             "?symbol=$sym&scale=240&ma=no&datalen=$count"
         val raw = Http.get(url)
+        if (raw.contains("<script>", true) || raw.contains("location.href", true)) {
+            throw RuntimeException("新浪K线被反爬拦截")
+        }
         val body = raw.substringAfter("([").substringBeforeLast("])")
         val arr = JSONArray("[$body]")
         val bars = mutableListOf<KLineBar>()

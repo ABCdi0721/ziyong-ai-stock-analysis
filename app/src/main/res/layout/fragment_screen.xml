@@ -137,44 +137,12 @@
                         android:textSize="18sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:id="@+id/rank_src_ths"
+                    <Spinner
+                        android:id="@+id/rank_src_spinner"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_pill_surface"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="同花顺"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/rank_src_em"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_pill_surface"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="东财"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/rank_src_tx"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_pill_surface"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="腾讯"
-                        android:textSize="12sp" />
+                        android:minWidth="96dp"
+                        android:spinnerMode="dropdown" />
                 </LinearLayout>
 
                 <!-- 类型 Tab：横向可滑动 -->

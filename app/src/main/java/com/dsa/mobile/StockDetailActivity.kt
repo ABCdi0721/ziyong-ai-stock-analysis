@@ -320,7 +320,20 @@ class StockDetailActivity : BaseActivity() {
                 // 回退腾讯
             }
         }
-        return TencentApi.fetchDailyKline(code, 320)
+        // 腾讯备用域 → 东方财富 → 腾讯主域 → 新浪，任一可用即返回（主域在部分网络被 WAF 拦截）
+        return try {
+            TencentApi.fetchDailyKlineAlt(code, 320)
+        } catch (e1: Exception) {
+            try {
+                EastmoneyApi.fetchDailyKline(code, 320)
+            } catch (e2: Exception) {
+                try {
+                    TencentApi.fetchDailyKline(code, 320)
+                } catch (e3: Exception) {
+                    SinaApi.fetchDailyKline(code, 320)
+                }
+            }
+        }
     }
 
     private fun render(q: Quote, r: AnalysisResult, bars: List<KLineBar>) {

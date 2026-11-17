@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
@@ -21,7 +23,6 @@ class ScreenHolderFragment : Fragment() {
     private var currentSource = RankBoardApi.Source.EM
 
     private var typeViews: Map<RankBoardApi.Type, TextView> = emptyMap()
-    private var sourceViews: Map<RankBoardApi.Source, TextView> = emptyMap()
     private var rankList: LinearLayout? = null
 
     override fun onCreateView(
@@ -57,11 +58,6 @@ class ScreenHolderFragment : Fragment() {
             RankBoardApi.Type.SECTOR to b.rankTypeSector,
             RankBoardApi.Type.ETF to b.rankTypeEtf
         )
-        sourceViews = mapOf(
-            RankBoardApi.Source.THS to b.rankSrcThs,
-            RankBoardApi.Source.EM to b.rankSrcEm,
-            RankBoardApi.Source.TX to b.rankSrcTx
-        )
 
         typeViews.forEach { (type, v) ->
             v.setOnClickListener {
@@ -71,13 +67,26 @@ class ScreenHolderFragment : Fragment() {
                 }
             }
         }
-        sourceViews.forEach { (source, v) ->
-            v.setOnClickListener {
-                if (currentSource != source) {
-                    currentSource = source
+
+        // 数据源下拉：同花顺 / 东方财富 / 腾讯
+        val sources = RankBoardApi.Source.values()
+        val srcAdapter = ArrayAdapter(
+            requireContext(), R.layout.spinner_item, sources.map { it.label }
+        )
+        srcAdapter.setDropDownViewResource(R.layout.spinner_item)
+        b.rankSrcSpinner.adapter = srcAdapter
+        b.rankSrcSpinner.setSelection(currentSource.ordinal)
+        b.rankSrcSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?, view: View?, position: Int, id: Long
+            ) {
+                val s = sources.getOrNull(position) ?: return
+                if (s != currentSource) {
+                    currentSource = s
                     loadRank()
                 }
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         refreshPills()
@@ -90,10 +99,6 @@ class ScreenHolderFragment : Fragment() {
         typeViews.forEach { (t, v) ->
             v.setTextColor(if (t == currentType) primary else text2)
             v.setTypeface(v.typeface, if (t == currentType) Typeface.BOLD else Typeface.NORMAL)
-        }
-        sourceViews.forEach { (s, v) ->
-            v.setTextColor(if (s == currentSource) primary else text2)
-            v.setTypeface(v.typeface, if (s == currentSource) Typeface.BOLD else Typeface.NORMAL)
         }
     }
 
@@ -150,17 +155,52 @@ class ScreenHolderFragment : Fragment() {
         ) boardSuffix(item.code) else ""
         ib.rankName.text = item.name + suffix
         ib.rankSub.text = item.sub
+
         val color = if (item.changePct >= 0) 0xFFE53935.toInt() else 0xFF43A047.toInt()
+
+        // 现价（无现价的板块榜隐藏）
+        if (item.price > 0) {
+            ib.rankPrice.visibility = View.VISIBLE
+            ib.rankPrice.text = String.format("%.2f", item.price)
+            ib.rankPrice.setTextColor(color)
+        } else {
+            ib.rankPrice.visibility = View.GONE
+        }
         ib.rankChange.text = String.format("%+.2f%%", item.changePct)
         ib.rankChange.setTextColor(color)
+
+        // 技术面信号（无信号隐藏）
+        if (item.signal.isBlank()) {
+            ib.rankSignal.visibility = View.GONE
+        } else {
+            ib.rankSignal.visibility = View.VISIBLE
+            ib.rankSignal.text = item.signal
+            ib.rankSignal.setTextColor(
+                when (item.signal) {
+                    "强烈买入" -> 0xFFE53935.toInt()
+                    "买入" -> 0xFFFB8C00.toInt()
+                    else -> 0xFF9E9E9E.toInt()
+                }
+            )
+        }
+
+        // 综合评分（0 分隐藏）
+        if (item.score > 0) {
+            ib.rankScore.visibility = View.VISIBLE
+            ib.rankScore.text = item.score.toString()
+        } else {
+            ib.rankScore.visibility = View.GONE
+        }
+
         ThemeManager.applyTagAlpha(ib.root, ib.root.context)
     }
 
-    /** 个股榜单（热股/龙虎榜）点进详情；板块、ETF 暂无详情页，不跳转 */
+    /** 个股榜（热股/龙虎）与 ETF 可点进详情；板块为 BK 代码，暂无详情页，不跳转 */
     private fun openDetail(item: RankBoardApi.RankItem) {
-        val isStock = currentType == RankBoardApi.Type.HOT ||
-            currentType == RankBoardApi.Type.LONGHU
-        if (!isStock) return
+        val clickable = currentType == RankBoardApi.Type.HOT ||
+            currentType == RankBoardApi.Type.LONGHU ||
+            currentType == RankBoardApi.Type.ETF
+        if (!clickable) return
         if (!Regex("^\\d{6}$").matches(item.code)) return
         startActivity(
             Intent(requireContext(), StockDetailActivity::class.java)
