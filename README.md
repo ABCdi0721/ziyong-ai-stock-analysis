@@ -34,6 +34,14 @@
 - 多维量能
 - 中小市值·热门题材
 
+### 软件截图
+<img width="628" height="1123" alt="image" src="https://github.com/user-attachments/assets/c7259f09-5a5b-4c17-8ebe-d97983ca1f6e" />
+<img width="617" height="1064" alt="image" src="https://github.com/user-attachments/assets/abf2a60d-24e4-4d64-9e40-197aa70f0917" />
+<img width="617" height="1061" alt="image" src="https://github.com/user-attachments/assets/8a6121cc-ceee-4f9e-b7d1-59a381f7d2b2" />
+<img width="628" height="1077" alt="image" src="https://github.com/user-attachments/assets/fec9649f-9da9-4050-a505-2900d64085ba" />
+<img width="627" height="1064" alt="image" src="https://github.com/user-attachments/assets/b9318d53-5859-458b-8c35-a9ea6b0b7e2a" />
+
+
 ### 个股详情
 - 日 K / 周 K / 月 K 线，快照技术形态评分与操作信号（趋势 / 乖离 / 量能 / MACD / RSI）。
 - 龙虎榜排名、热股榜排名、异动提醒卡片。
@@ -114,4 +122,4 @@ ziyong-ai-stock-analysis/
 
 ## 版本
 
-当前版本：**2.12.22**（versionCode 56）。完整版本迭代记录见 [使用说明.md](使用说明.md)。
+完整版本迭代记录见 [使用说明.md](使用说明.md)。
