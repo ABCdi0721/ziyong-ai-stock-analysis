@@ -35,11 +35,11 @@
 - 中小市值·热门题材
 
 ### 软件截图
-<img width="10%" height="20%" alt="image" src="https://github.com/user-attachments/assets/c7259f09-5a5b-4c17-8ebe-d97983ca1f6e" />
-<img width="10%" height="20%" alt="image" src="https://github.com/user-attachments/assets/abf2a60d-24e4-4d64-9e40-197aa70f0917" />
-<img width="10%" height="20%" alt="image" src="https://github.com/user-attachments/assets/8a6121cc-ceee-4f9e-b7d1-59a381f7d2b2" />
-<img width="10%" height="20%" alt="image" src="https://github.com/user-attachments/assets/fec9649f-9da9-4050-a505-2900d64085ba" />
-<img width="10%" height="20%" alt="image" src="https://github.com/user-attachments/assets/b9318d53-5859-458b-8c35-a9ea6b0b7e2a" />
+<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/c7259f09-5a5b-4c17-8ebe-d97983ca1f6e" />
+<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/abf2a60d-24e4-4d64-9e40-197aa70f0917" />
+<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/8a6121cc-ceee-4f9e-b7d1-59a381f7d2b2" />
+<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/fec9649f-9da9-4050-a505-2900d64085ba" />
+<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/b9318d53-5859-458b-8c35-a9ea6b0b7e2a" />
 
 
 ### 个股详情
