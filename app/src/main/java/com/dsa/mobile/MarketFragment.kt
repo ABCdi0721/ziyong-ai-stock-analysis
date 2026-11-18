@@ -31,9 +31,21 @@ class MarketFragment : Fragment() {
         b.tvRefreshMode.setOnClickListener { showRefreshModeDialog() }
         updateRefreshModeLabel()
         applyHeroCard(b)
+        applyWarnColors()
         ThemeManager.applyTagAlphaTree(b.root, requireContext())
 
         return b.root
+    }
+
+    /**
+     * v2.12.26：警示卡为半透明红底叠在壁纸/卡片上，浅底时浅粉文字对比度不足。
+     * 深色模式沿用浅红/浅粉；浅色模式上行用深红、下行跟随主题深灰，两种底都可读。
+     */
+    private fun applyWarnColors() {
+        val b = binding ?: return
+        val dark = ThemeManager.isDark(requireContext())
+        b.warnLine1.setTextColor(if (dark) 0xFFF28B82.toInt() else 0xFFC62828.toInt())
+        b.daoLine.setTextColor(if (dark) 0xFFE8A09C.toInt() else themeColor(ATTR_TEXT2))
     }
 
     /**
@@ -181,6 +193,7 @@ class MarketFragment : Fragment() {
 
         b.warnLine1.text = d.warnLine1
         b.daoLine.text = d.daoLine
+        applyWarnColors()
 
         b.lightsBadge.text = "${d.lightsOn}/3"
         setLight(b.light1, d.lightBelowMa20, "跌破MA20")
