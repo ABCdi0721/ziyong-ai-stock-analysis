@@ -36,11 +36,6 @@ class ScreeningActivity : BaseActivity() {
     // v2.6.1：所有策略按评分换算的信号标签（强烈买入/买入），信号筛选与列表徽标共用
     private var resultSignals: Map<String, String> = emptyMap()
 
-    // v2.12.26：碗口反弹新因子引擎（独立结果列表，置于原引擎下方）
-    private var bowlItems: List<Triple<ScreenStock, Double, Map<String, Double>>> = emptyList()
-    private var bowlSignals: Map<String, String> = emptyMap()
-    private var bowlRunning = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityScreeningBinding.inflate(layoutInflater)
@@ -55,13 +50,6 @@ class ScreeningActivity : BaseActivity() {
             ArrayAdapter(this, R.layout.spinner_item, strategyNames)
 
         binding.screenRecycler.layoutManager = LinearLayoutManager(this)
-        binding.bowlRecycler.layoutManager = LinearLayoutManager(this)
-
-        // v2.12.26：碗口反弹新因子引擎独立触发按钮
-        binding.btnRunBowl.setOnClickListener {
-            if (bowlRunning) return@setOnClickListener
-            runBowlScreening()
-        }
 
         // v2.5.0：结果筛选（板块：沪深主板 / 科创板688 / 创业板300-301；信号：强烈买入/买入）
         binding.spFilterBoard.adapter = ArrayAdapter(
@@ -384,7 +372,7 @@ class ScreeningActivity : BaseActivity() {
      * v2.6.0 自动数据源：按优先级依次尝试，全部失败抛最后异常。
      * 顺序：腾讯（免费、无需 Key）→ 东方财富 → Tushare → TickFlow
      */
-    private fun fetchAuto(strategy: ScreenStrategy, onProgress: ((Int, Int) -> Unit)? = null): Pair<List<ScreenStock>, String> {
+    private fun fetchAuto(strategy: ScreenStrategy): Pair<List<ScreenStock>, String> {
         val attempts = listOf(
             Pair("tencent", "腾讯"),
             Pair("eastmoney", "东方财富"),
@@ -395,10 +383,10 @@ class ScreeningActivity : BaseActivity() {
         for ((id, label) in attempts) {
             try {
                 val list = when (id) {
-                    "tencent" -> fetchTencent(onProgress)
-                    "eastmoney" -> fetchEastmoney(onProgress)
-                    "tushare" -> fetchTushare(onProgress)
-                    else -> fetchTickflow(strategy, onProgress)
+                    "tencent" -> fetchTencent()
+                    "eastmoney" -> fetchEastmoney()
+                    "tushare" -> fetchTushare()
+                    else -> fetchTickflow(strategy)
                 }
                 return Pair(list, label)
             } catch (e: Exception) {
@@ -1041,20 +1029,18 @@ class ScreeningActivity : BaseActivity() {
         }
     }
 
-    private fun fetchEastmoney(onProgress: ((Int, Int) -> Unit)? = null): List<ScreenStock> =
+    private fun fetchEastmoney(): List<ScreenStock> =
         EastmoneyApi.fetchAllStocks { done, total ->
-            if (onProgress != null) onProgress(done, total)
-            else runOnUiThread {
+            runOnUiThread {
                 binding.screenStatus.text = "获取市场数据 $done/$total…"
             }
         }
 
-    private fun fetchTushare(onProgress: ((Int, Int) -> Unit)? = null): List<ScreenStock> {
+    private fun fetchTushare(): List<ScreenStock> {
         val token = Prefs.tushareToken(this)
         if (token.isBlank()) throw RuntimeException("未配置 Tushare Token（设置 → Tushare Token）")
         return TushareApi.fetchAllStocks(this, token) { done, total ->
-            if (onProgress != null) onProgress(done, total)
-            else runOnUiThread {
+            runOnUiThread {
                 binding.screenStatus.text = "获取 Tushare 数据 $done/$total…"
             }
         }
@@ -1063,10 +1049,9 @@ class ScreeningActivity : BaseActivity() {
     /**
      * 腾讯自选股选股（v2.3.0，免费，无需 Key）：rank 接口翻页拉全市场，字段全就绪
      */
-    private fun fetchTencent(onProgress: ((Int, Int) -> Unit)? = null): List<ScreenStock> {
+    private fun fetchTencent(): List<ScreenStock> {
         return TencentScreenApi.fetchAllStocks { done, total ->
-            if (onProgress != null) onProgress(done, total)
-            else runOnUiThread { binding.screenStatus.text = "获取腾讯数据 $done/$total…" }
+            runOnUiThread { binding.screenStatus.text = "获取腾讯数据 $done/$total…" }
         }
     }
 
@@ -1075,135 +1060,17 @@ class ScreeningActivity : BaseActivity() {
      * 全市场实时行情 + 股本/财务分批 → 粗筛候选（量比暂不判断）→
      * 候选 klines 补算真实量比与 60 日动量 → 返回增强后的候选集
      */
-    private fun fetchTickflow(strategy: ScreenStrategy, onProgress: ((Int, Int) -> Unit)? = null): List<ScreenStock> {
+    private fun fetchTickflow(strategy: ScreenStrategy): List<ScreenStock> {
         val key = Prefs.tickflowKey(this)
         if (key.isBlank()) throw RuntimeException("未配置 TickFlow API Key（设置 → TickFlow API Key）")
         val full = TickFlowApi.fetchAllStocks(key) { done, total ->
-            if (onProgress != null) onProgress(done, total)
-            else runOnUiThread { binding.screenStatus.text = "获取 TickFlow 数据 $done/$total…" }
+            runOnUiThread { binding.screenStatus.text = "获取 TickFlow 数据 $done/$total…" }
         }
         // 粗筛：量比暂不判断（真实量比需候选补算），并限制候选规模
         val pre = Screening.applyFilters(full, strategy.copy(vrMin = null, vrMax = null)).take(600)
         if (pre.isEmpty()) return emptyList()
         return TickFlowApi.enrichMomentum(key, pre) { done, total ->
-            if (onProgress != null) onProgress(done, total)
-            else runOnUiThread { binding.screenStatus.text = "TickFlow 补算量比/动量 $done/$total…" }
-        }
-    }
-
-    /**
-     * v2.12.26 碗口反弹新因子引擎：
-     * 全市场快照 → 当日可买 + 快照预筛 → 因子分 Top100 → 并发拉日K做碗口判定
-     * （KDJ 低位超卖 / 放量阳线 / 最大量非阴量 / 趋势未破位）→ 命中按因子分降序取前 30，
-     * 条目复用与原引擎相同的图3样式；信号标签 ≥80 强烈买入，其余买入。
-     */
-    private fun runBowlScreening() {
-        bowlRunning = true
-        binding.btnRunBowl.isEnabled = false
-        binding.bowlStatus.text = "正在获取全市场数据…"
-        val strategy = BowlRebound.prefilter()
-        Thread {
-            val all: List<ScreenStock>
-            var source = "自动"
-            try {
-                val (list, label) = fetchAuto(strategy) { done, total ->
-                    runOnUiThread { binding.bowlStatus.text = "获取行情 $done/$total…" }
-                }
-                all = list
-                source = label
-            } catch (e: Exception) {
-                runOnUiThread {
-                    binding.bowlStatus.text = "获取失败：${e.message}"
-                    binding.btnRunBowl.isEnabled = true
-                    bowlRunning = false
-                }
-                return@Thread
-            }
-
-            // 当日可买过滤（停牌/无成交/ST/退市/涨跌停）+ 快照层预筛
-            val tradable = all.filter { BowlRebound.tradable(it) }
-            val filtered = Screening.applyFilters(tradable, strategy)
-            if (filtered.isEmpty()) {
-                runOnUiThread {
-                    binding.bowlStatus.text = "全市场 ${all.size} 只（$source），预筛后无候选"
-                    binding.btnRunBowl.isEnabled = true
-                    bowlRunning = false
-                }
-                return@Thread
-            }
-
-            // 快照多因子分排序取 Top100 进入日K碗口判定
-            val preCand = Screening.score(filtered, strategy).take(100)
-            if (preCand.isEmpty()) {
-                runOnUiThread {
-                    binding.bowlStatus.text = "全市场 ${all.size} 只（$source），预筛后无候选"
-                    binding.btnRunBowl.isEnabled = true
-                    bowlRunning = false
-                }
-                return@Thread
-            }
-
-            val executor = java.util.concurrent.Executors.newFixedThreadPool(6)
-            try {
-                val futures = preCand.map { (st, _, _) ->
-                    executor.submit<Pair<ScreenStock, Double>?> {
-                        try {
-                            val bars = fetchSnapshotKline(st.code)
-                            val hit = BowlRebound.evaluate(bars)
-                            if (hit != null) st to hit.score else null
-                        } catch (e: Exception) { null }
-                    }
-                }
-                val hitList = mutableListOf<Triple<ScreenStock, Double, Map<String, Double>>>()
-                futures.forEachIndexed { i, f ->
-                    try {
-                        val pair = f.get()
-                        if (pair != null) hitList.add(Triple(pair.first, pair.second, emptyMap()))
-                    } catch (e: Exception) { /* 单只失败跳过 */ }
-                    val done = i + 1
-                    runOnUiThread { binding.bowlStatus.text = "碗口反弹日K判定 $done/${futures.size}…" }
-                }
-                val scored = hitList.sortedByDescending { it.second }.take(30)
-
-                val signalMap = HashMap<String, String>()
-                for ((st, sc, _) in scored) {
-                    signalMap[st.code] = if (sc >= 80) "强烈买入" else "买入"
-                }
-
-                Prefs.saveScreenHistory(
-                    this,
-                    ScreenHistory(
-                        time = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date()),
-                        strategy = "碗口反弹",
-                        source = "新因子引擎+$source",
-                        total = all.size,
-                        matched = scored.size,
-                        stocks = scored.take(30).map { ScreenHistoryStock(it.first.code, it.first.name, it.second) }
-                    )
-                )
-
-                runOnUiThread {
-                    binding.btnRunBowl.isEnabled = true
-                    bowlRunning = false
-                    binding.bowlStatus.text = if (scored.isEmpty()) {
-                        "全市场 ${all.size} 只（$source）→ 预筛 ${filtered.size} 只 → 无命中碗口反弹形态"
-                    } else {
-                        "全市场 ${all.size} 只（$source）→ 预筛 ${filtered.size} 只 → 命中 ${scored.size} 只"
-                    }
-                    bowlItems = scored
-                    bowlSignals = signalMap
-                    renderBowl()
-                }
-            } finally {
-                executor.shutdown()
-            }
-        }.start()
-    }
-
-    /** 渲染碗口反弹独立结果列表（条目样式与原引擎图3一致） */
-    private fun renderBowl() {
-        binding.bowlRecycler.adapter = ScreenAdapter(bowlItems, emptyMap(), bowlSignals) { code ->
-            startActivity(Intent(this, StockDetailActivity::class.java).putExtra("code", code))
+            runOnUiThread { binding.screenStatus.text = "TickFlow 补算量比/动量 $done/$total…" }
         }
     }
 

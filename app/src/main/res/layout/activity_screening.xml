@@ -1,186 +1,123 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:orientation="vertical">
 
+    <!-- 策略栏卡片（v2.12.9：改为两行，策略下拉占满整行，保证策略名完整可见；
+         v2.12.10：长按本卡或下拉可弹出策略排序面板） -->
+    <LinearLayout
+        android:id="@+id/strategy_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:background="@drawable/bg_section"
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="策略"
+                android:textColor="?attr/dsaText"
+                android:textSize="15sp" />
+
+            <Spinner
+                android:id="@+id/strategy_spinner"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_run_screen"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="开始选股"
+                app:backgroundTint="?attr/dsaPrimary" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_history"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="历史"
+                app:backgroundTint="?attr/dsaPrimaryDark"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/screen_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="10dp"
+        android:textColor="?attr/dsaText2"
+        android:textSize="13sp" />
+
+    <!-- v2.5.0：结果筛选（板块 / 快照信号） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <!-- 策略栏卡片（v2.12.9：改为两行，策略下拉占满整行，保证策略名完整可见；
-             v2.12.10：长按本卡或下拉可弹出策略排序面板） -->
-        <LinearLayout
-            android:id="@+id/strategy_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:background="@drawable/bg_section"
-            android:orientation="vertical"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="10dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="策略"
-                    android:textColor="?attr/dsaText"
-                    android:textSize="15sp" />
-
-                <Spinner
-                    android:id="@+id/strategy_spinner"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_run_screen"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="开始选股"
-                    app:backgroundTint="?attr/dsaPrimary" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_history"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="历史"
-                    app:backgroundTint="?attr/dsaPrimaryDark"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
-            </LinearLayout>
-        </LinearLayout>
+        android:layout_margin="8dp"
+        android:background="@drawable/bg_section"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="4dp">
 
         <TextView
-            android:id="@+id/screen_status"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:padding="10dp"
-            android:textColor="?attr/dsaText2"
-            android:textSize="13sp" />
+            android:text="板块"
+            android:textColor="?attr/dsaText"
+            android:textSize="14sp" />
 
-        <!-- v2.5.0：结果筛选（板块 / 快照信号） -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        <Spinner
+            android:id="@+id/sp_filter_board"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:background="@drawable/bg_section"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="板块"
-                android:textColor="?attr/dsaText"
-                android:textSize="14sp" />
-
-            <Spinner
-                android:id="@+id/sp_filter_board"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:text="信号"
-                android:textColor="?attr/dsaText"
-                android:textSize="14sp" />
-
-            <Spinner
-                android:id="@+id/sp_filter_signal"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/screen_recycler"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clipToPadding="false"
-            android:nestedScrollingEnabled="false"
-            android:paddingBottom="16dp" />
-
-        <!-- v2.12.26：碗口反弹 · 新因子引擎（置于原选股引擎下方，独立触发 + 独立结果列表） -->
-        <LinearLayout
-            android:id="@+id/bowl_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:background="@drawable/bg_section"
-            android:orientation="vertical"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="10dp"
-            android:tag="dsa_tag">
-
-            <TextView
-                android:id="@+id/bowl_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="碗口反弹 · 新因子引擎"
-                android:textColor="?attr/dsaText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/bowl_desc"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:lineSpacingExtra="2dp"
-                android:text="KDJ 低位超卖 + 近20日放量阳线确认 + 最大量非阴量 + 趋势未破位；选出当日可买反弹候选（移植自 a-share-quant-selector 碗口反弹策略）"
-                android:textColor="?attr/dsaText2"
-                android:textSize="12sp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_run_bowl"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="开始碗口反弹选股"
-                app:backgroundTint="?attr/dsaPrimary" />
-        </LinearLayout>
+            android:layout_marginStart="8dp"
+            android:layout_weight="1" />
 
         <TextView
-            android:id="@+id/bowl_status"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:padding="10dp"
-            android:textColor="?attr/dsaText2"
-            android:textSize="13sp" />
+            android:layout_marginStart="12dp"
+            android:text="信号"
+            android:textColor="?attr/dsaText"
+            android:textSize="14sp" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/bowl_recycler"
-            android:layout_width="match_parent"
+        <Spinner
+            android:id="@+id/sp_filter_signal"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:clipToPadding="false"
-            android:nestedScrollingEnabled="false"
-            android:paddingBottom="16dp" />
+            android:layout_marginStart="8dp"
+            android:layout_weight="1" />
     </LinearLayout>
-</ScrollView>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/screen_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp" />
+</LinearLayout>
