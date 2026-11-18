@@ -118,6 +118,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:background="@drawable/bg_section"
+                android:tag="dsa_tag"
                 android:orientation="vertical"
                 android:padding="16dp">
 
