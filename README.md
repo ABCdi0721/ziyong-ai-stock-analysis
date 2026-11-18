@@ -34,13 +34,7 @@
 - 多维量能
 - 中小市值·热门题材
 
-### 软件截图
-<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/c7259f09-5a5b-4c17-8ebe-d97983ca1f6e" />
-<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/abf2a60d-24e4-4d64-9e40-197aa70f0917" />
-<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/8a6121cc-ceee-4f9e-b7d1-59a381f7d2b2" />
-<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/fec9649f-9da9-4050-a505-2900d64085ba" />
-<img width="20%" height="40%" alt="image" src="https://github.com/user-attachments/assets/b9318d53-5859-458b-8c35-a9ea6b0b7e2a" />
-
+**碗口反弹 · 独立新因子引擎**（独立卡片置于原 18 策略引擎下方，独立触发与结果列表）：KDJ 低位超卖（J<20）+ 近 20 日放量阳线确认 + 窗口最大量非阴量出逃 + 14/28 日均线趋势未破位，综合评分后给出当日可买反弹候选；因子口径参考开源项目 `a-share-quant-selector` 的碗口反弹（BowlRebound）策略。
 
 ### 个股详情
 - 日 K / 周 K / 月 K 线，快照技术形态评分与操作信号（趋势 / 乖离 / 量能 / MACD / RSI）。
@@ -122,4 +116,4 @@ ziyong-ai-stock-analysis/
 
 ## 版本
 
-完整版本迭代记录见 [使用说明.md](使用说明.md)。
+当前版本：**2.12.22**（versionCode 56）。完整版本迭代记录见 [使用说明.md](使用说明.md)。
