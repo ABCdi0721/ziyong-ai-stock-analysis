@@ -148,15 +148,25 @@ object TushareApi {
         val dailyToday = callItems(
             token, "daily",
             mapOf("trade_date" to latestTd),
-            "ts_code,close,pct_chg,amount"
+            "ts_code,close,pct_chg,amount,high,low,vol"
         )
-        val todayMap = HashMap<String, Triple<Double, Double, Double>>()
+        class D {
+            var close = 0.0; var pct = 0.0; var amount = 0.0
+            var high = 0.0; var low = 0.0; var vol = 0L
+        }
+        val todayMap = HashMap<String, D>()
         for (i in 0 until dailyToday.length()) {
             val row = dailyToday.optJSONArray(i) ?: continue
             val ts = row.optString(0, "")
-            if (ts.isNotBlank()) todayMap[ts] = Triple(
-                row.optDouble(1, 0.0), row.optDouble(2, 0.0), row.optDouble(3, 0.0)
-            )
+            if (ts.isBlank()) continue
+            val d = D()
+            d.close = row.optDouble(1, 0.0)
+            d.pct = row.optDouble(2, 0.0)
+            d.amount = row.optDouble(3, 0.0)
+            d.high = row.optDouble(4, 0.0)
+            d.low = row.optDouble(5, 0.0)
+            d.vol = row.optDouble(6, 0.0).toLong()
+            todayMap[ts] = d
         }
 
         // 3) 60 个交易日前日线（收盘价，算 60 日涨跌幅）
@@ -221,20 +231,23 @@ object TushareApi {
             val name = nameMap[ts] ?: continue
             val b = basicMap[ts]
             val c60 = close60Map[ts] ?: 0.0
-            val change60 = if (c60 > 0 && t.first > 0) (t.first / c60 - 1.0) * 100.0 else 0.0
+            val change60 = if (c60 > 0 && t.close > 0) (t.close / c60 - 1.0) * 100.0 else 0.0
             out.add(
                 ScreenStock(
                     code = code,
                     name = name,
-                    price = t.first,
-                    changePct = t.second,
+                    price = t.close,
+                    changePct = t.pct,
                     volumeRatio = b?.vr ?: 0.0,
                     turnoverRate = b?.turnover ?: 0.0,
                     pe = b?.pe ?: 0.0,
                     pb = b?.pb ?: 0.0,
                     totalMv = (b?.mv ?: 0.0) / 1e4, // 万元 → 亿
-                    amount = t.third * 1e3,          // 千元 → 元
-                    change60d = change60
+                    amount = t.amount * 1e3,          // 千元 → 元
+                    change60d = change60,
+                    high = t.high,
+                    low = t.low,
+                    volume = t.vol
                 )
             )
         }

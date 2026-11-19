@@ -233,6 +233,7 @@ object Prefs {
     fun tickflowKey(ctx: Context): String = sp(ctx).getString("tickflow_key", "") ?: ""
     fun mxApiKey(ctx: Context): String = sp(ctx).getString("mx_api_key", "") ?: ""
     fun futuHost(ctx: Context): String = sp(ctx).getString("futu_host", "") ?: ""
+    fun zhituToken(ctx: Context): String = sp(ctx).getString("zhitu_token", "") ?: ""
     fun remoteIndexEnabled(ctx: Context): Boolean = sp(ctx).getBoolean("remote_index_enabled", false)
     fun tickflowAdj(ctx: Context): String = sp(ctx).getString("tickflow_adj", "none") ?: "none"
     fun tickflowBatchPrefetch(ctx: Context): Boolean =
@@ -263,8 +264,22 @@ object Prefs {
         sp(ctx).edit().putString("token_mode", m).apply()
     }
     fun isLean(ctx: Context): Boolean = tokenMode(ctx) == "lean"
-    /** 选股数据源：auto / eastmoney / tushare / tickflow / miaoxiang / futu */
+    /** 选股数据源：auto / eastmoney / tushare / tickflow / tencent / miaoxiang / futu */
     fun screenSource(ctx: Context): String = sp(ctx).getString("screen_source", "auto") ?: "auto"
+
+    /** 选股数据源下拉文案与取值（顺序一一对应；设置页与选股页快捷下拉共用，避免两处漂移） */
+    val SCREEN_SOURCE_LABELS = listOf(
+        "自动（东财失败切Tushare）", "东方财富", "Tushare", "TickFlow",
+        "腾讯（免费）", "MiaoXiang", "Futu"
+    )
+    val SCREEN_SOURCE_VALUES = listOf(
+        "auto", "eastmoney", "tushare", "tickflow", "tencent", "miaoxiang", "futu"
+    )
+
+    /** 选股页快捷下拉直接写回数据源（与设置页同一键 screen_source） */
+    fun saveScreenSource(ctx: Context, source: String) {
+        sp(ctx).edit().putString("screen_source", source).apply()
+    }
     /** v2.6.2 上次使用的选股策略下标（进入选股页恢复，保证策略不变） */
     fun screenStrategyIdx(ctx: Context): Int = sp(ctx).getInt("screen_strategy_idx", 0)
     fun saveScreenStrategyIdx(ctx: Context, idx: Int) {
@@ -296,6 +311,39 @@ object Prefs {
     fun futuPriority(ctx: Context): String = sp(ctx).getString("futu_priority", "futu") ?: "futu"
     /** 启用筹码分布分析 */
     fun chipEnabled(ctx: Context): Boolean = sp(ctx).getBoolean("chip_enabled", true)
+
+    // ---- v2.12.36 E3：选股惩罚权重与短线混合口径（出厂默认，可恢复默认） ----
+    const val DEFAULT_RISK_WEIGHT = 0.35f
+    const val DEFAULT_COST_WEIGHT = 0.15f
+    const val DEFAULT_SHORT_FACTOR_W = 0.6f
+
+    /** 风险惩罚权重（0..0.6，默认 0.35） */
+    fun riskWeight(ctx: Context): Float =
+        sp(ctx).getFloat("risk_weight", DEFAULT_RISK_WEIGHT).coerceIn(0f, 0.6f)
+
+    /** 成本惩罚权重（0..0.4，默认 0.15） */
+    fun costWeight(ctx: Context): Float =
+        sp(ctx).getFloat("cost_weight", DEFAULT_COST_WEIGHT).coerceIn(0f, 0.4f)
+
+    /** 短线混合口径中截面因子权重（0..1，默认 0.6；信号权重 = 1 − 因子权重） */
+    fun shortFactorWeight(ctx: Context): Float =
+        sp(ctx).getFloat("short_factor_w", DEFAULT_SHORT_FACTOR_W).coerceIn(0f, 1f)
+
+    fun saveWeights(ctx: Context, risk: Float, cost: Float, shortFactor: Float) {
+        sp(ctx).edit()
+            .putFloat("risk_weight", risk.coerceIn(0f, 0.6f))
+            .putFloat("cost_weight", cost.coerceIn(0f, 0.4f))
+            .putFloat("short_factor_w", shortFactor.coerceIn(0f, 1f))
+            .apply()
+    }
+
+    fun resetWeights(ctx: Context) {
+        sp(ctx).edit()
+            .remove("risk_weight")
+            .remove("cost_weight")
+            .remove("short_factor_w")
+            .apply()
+    }
 
     fun saveExtendedSettings(
         ctx: Context,
@@ -432,7 +480,7 @@ object Prefs {
         ctx: Context,
         token: String, baseUrl: String, apiKey: String, model: String,
         temperature: Double, fallbackModel: String,
-        tickflowKey: String, mxApiKey: String, futuHost: String,
+        tickflowKey: String, mxApiKey: String, futuHost: String, zhituToken: String,
         remoteIndex: Boolean, adjMode: String, batchPrefetch: Boolean, batchSize: Int
     ) {
         sp(ctx).edit()
@@ -445,6 +493,7 @@ object Prefs {
             .putString("tickflow_key", tickflowKey.trim())
             .putString("mx_api_key", mxApiKey.trim())
             .putString("futu_host", futuHost.trim())
+            .putString("zhitu_token", zhituToken.trim())
             .putBoolean("remote_index_enabled", remoteIndex)
             .putString("tickflow_adj", adjMode)
             .putBoolean("tickflow_batch_prefetch", batchPrefetch)
@@ -601,6 +650,16 @@ object Prefs {
     fun removeWatch(ctx: Context, code: String) {
         val list = watchlist(ctx).filter { it != code }
         sp(ctx).edit().putString("watchlist", JSONArray(list).toString()).apply()
+        // v2.12.32：联动取消该股已收藏的分析报告（仅取消收藏，不删除报告本体）
+        val hist = history(ctx).toMutableList()
+        var touched = false
+        for (i in hist.indices) {
+            if (hist[i].code == code && hist[i].favorite) {
+                hist[i] = hist[i].copy(favorite = false)
+                touched = true
+            }
+        }
+        if (touched) persist(ctx, hist)
     }
 
     fun inWatchlist(ctx: Context, code: String): Boolean = code in watchlist(ctx)
@@ -696,6 +755,53 @@ object Prefs {
         persist(ctx, list)
         return favorite
     }
+
+    // ---- v2.12.32 报错报告检测 ----
+
+    /** 报错/异常特征标记（统一小写；命中任一即视为报错报告） */
+    private val errorMarkers = listOf(
+        // 中文报错
+        "分析失败", "生成失败", "请求失败", "调用失败", "获取失败", "保存失败",
+        "检索异常", "检索失败", "接口报错", "网络错误", "返回异常", "解析失败",
+        "空响应", "未配置模型", "请先在大模型设置", "llm 调用失败", "llm 返回异常",
+        "错误码", "连接失败", "断流", "超时",
+        // 英文异常 / 堆栈
+        "exception", "traceback", "nullpointer", "runtimeexception", "stacktrace",
+        "caused by", "at java.", "at kotlin.", "at android.", "classcastexception",
+        "illegalstate", "indexoutofbound", "parse error", "malformed",
+        // HTTP / 网络
+        "http 4", "http 5", "http 429", "connection refused", "connection reset",
+        "broken pipe", "failed to connect", "network is unreachable", "timeout",
+        "timed out", "unexpected end of stream", "stream was reset", "socket",
+        "ssl handshake",
+        // 鉴权 / 限流 / 服务端错误
+        "unauthorized", "forbidden", "rate limit", "internal server error",
+        "bad gateway", "service unavailable", "gateway timeout", "not found",
+        "{\"error", "\"error\":", "internal error", "unknown error",
+        "invalid api key", "invalid_request_error"
+    )
+
+    private val cjkRegex = Regex("[一-鿿]")
+    private val latinRegex = Regex("[A-Za-z]")
+
+    /**
+     * 判断一条历史报告是否为报错/空报告。
+     * 口径：① 正文为空；② 命中报错/异常/HTTP/堆栈等特征标记；
+     * ③ 整段以英文为主（中文极少、英文长串），通常是接口把英文错误信息直接落库。
+     */
+    fun isErrorReport(r: HistoryReport): Boolean {
+        val text = r.report
+        if (text.isBlank()) return true
+        val lower = text.lowercase()
+        if (errorMarkers.any { lower.contains(it) }) return true
+        val cjk = cjkRegex.findAll(text).count()
+        val latin = latinRegex.findAll(text).count()
+        return cjk < 10 && latin >= 40
+    }
+
+    /** 扫描全量历史报告，返回其中被判为报错/空报告的条目 */
+    fun detectErrorReports(ctx: Context): List<HistoryReport> =
+        history(ctx).filter { isErrorReport(it) }
 
     /**
      * 报告页可能只拿到内容、拿不到 id（自动保存的场景）：

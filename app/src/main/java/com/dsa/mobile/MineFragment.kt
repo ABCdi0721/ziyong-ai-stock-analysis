@@ -42,6 +42,10 @@ class MineFragment : Fragment() {
         }
         // v2.12.1：通知与超级岛（能力状态 + 发送测试通知）
         b.entryFocus.setOnClickListener { showFocusDialog() }
+        // v2.12.34：关于（版本号 + 历史更新简略版）
+        b.entryAbout.setOnClickListener {
+            startActivity(Intent(requireContext(), AboutActivity::class.java))
+        }
         return b.root
     }
 

@@ -29,12 +29,22 @@ class ScreeningActivity : BaseActivity() {
     // v2.12.10：策略顺序可由用户长按调整，下拉项与运行入口都以这里为准
     private var strategies: List<ScreenStrategy> = Screening.STRATEGIES
     private var strategyNames: List<String> = Screening.STRATEGIES.map { it.name }
+    // 展示名：去掉 #序号前缀；下拉适配器用它，选中回调与持久化仍按原始 name
+    private var strategyDisplayNames: List<String> = strategies.map { Screening.displayName(it.name) }
 
     // v2.5.0：结果筛选状态（板块 / 信号）
     private var resultItems: List<Triple<ScreenStock, Double, Map<String, Double>>> = emptyList()
     private var resultNews: Map<String, String> = emptyMap()
     // v2.6.1：所有策略按评分换算的信号标签（强烈买入/买入），信号筛选与列表徽标共用
     private var resultSignals: Map<String, String> = emptyMap()
+
+    // v2.12.35：选股并发数（F1）；快照缓存命中标记（C2）
+    private val screenConcurrency = 6
+    private var snapshotFromCache = false
+
+    /** v2.12.36：异常分级提示（F2）；非分级异常回退原始 message */
+    private fun failMessage(e: Throwable): String =
+        (e as? NetException)?.display() ?: (e.message ?: "未知错误")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,8 +56,24 @@ class ScreeningActivity : BaseActivity() {
         // v2.12.10：先按用户保存的顺序还原策略列表，再填充下拉
         strategies = Screening.ordered(Prefs.screenStrategyOrder(this))
         strategyNames = strategies.map { it.name }
+        strategyDisplayNames = strategies.map { Screening.displayName(it.name) }
         binding.strategySpinner.adapter =
-            ArrayAdapter(this, R.layout.spinner_item, strategyNames)
+            ArrayAdapter(this, R.layout.spinner_item, strategyDisplayNames)
+
+        // 数据源快捷下拉：与设置页共用 screen_source 键；透明背景项，切换即持久化同步
+        val sourceAdapter = ArrayAdapter(
+            this, R.layout.spinner_item_transparent, Prefs.SCREEN_SOURCE_LABELS
+        )
+        sourceAdapter.setDropDownViewResource(R.layout.spinner_item_transparent)
+        binding.spScreenSource.adapter = sourceAdapter
+        val srcIdx = Prefs.SCREEN_SOURCE_VALUES.indexOf(Prefs.screenSource(this)).coerceAtLeast(0)
+        binding.spScreenSource.setSelection(srcIdx)
+        binding.spScreenSource.onItemSelectedListener = simpleSelected {
+            val pos = binding.spScreenSource.selectedItemPosition
+            Prefs.saveScreenSource(
+                this, Prefs.SCREEN_SOURCE_VALUES.getOrElse(pos) { "auto" }
+            )
+        }
 
         binding.screenRecycler.layoutManager = LinearLayoutManager(this)
 
@@ -176,7 +202,7 @@ class ScreeningActivity : BaseActivity() {
             override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
                 val arr = holder.itemView.tag as Array<TextView>
                 arr[0].text = "${position + 1}"
-                arr[1].text = work[position]
+                arr[1].text = Screening.displayName(work[position])
                 arr[2].setOnLongClickListener {
                     touchHelper?.startDrag(holder)
                     true
@@ -248,8 +274,9 @@ class ScreeningActivity : BaseActivity() {
             ?: Prefs.screenStrategyName(this)
         strategies = Screening.ordered(Prefs.screenStrategyOrder(this))
         strategyNames = strategies.map { it.name }
+        strategyDisplayNames = strategies.map { Screening.displayName(it.name) }
         binding.strategySpinner.adapter =
-            ArrayAdapter(this, R.layout.spinner_item, strategyNames)
+            ArrayAdapter(this, R.layout.spinner_item, strategyDisplayNames)
         val pos = strategyNames.indexOf(keep).takeIf { it >= 0 } ?: 0
         binding.strategySpinner.setSelection(pos)
         Prefs.saveScreenStrategyIdx(this, pos)
@@ -382,15 +409,19 @@ class ScreeningActivity : BaseActivity() {
         var last: Exception = RuntimeException("所有数据源均失败")
         for ((id, label) in attempts) {
             try {
-                val list = when (id) {
-                    "tencent" -> fetchTencent()
-                    "eastmoney" -> fetchEastmoney()
-                    "tushare" -> fetchTushare()
-                    else -> fetchTickflow(strategy)
+                val (list, usedLabel) = when (id) {
+                    "tencent" -> fetchTencentWithFallback(strategy)
+                    "eastmoney" -> Pair(fetchEastmoney(), "东方财富")
+                    "tushare" -> Pair(fetchTushare(), "Tushare")
+                    else -> Pair(fetchTickflow(strategy), "TickFlow")
                 }
-                return Pair(list, label)
+                return Pair(list, usedLabel)
             } catch (e: Exception) {
                 last = e
+                AppLog.record(
+                    this, label, "数据源失败",
+                    (e as? NetException)?.let { "${it.kind}: ${it.message}" } ?: (e.message ?: "")
+                )
             }
         }
         throw last
@@ -402,7 +433,14 @@ class ScreeningActivity : BaseActivity() {
         binding.screenStatus.text = "正在获取全市场数据…"
         Thread {
             // v2.4.0：短线·今日买入走专用流程（拉日K → 快照分析 → 只保留"买入"信号）
-            if (strategy.name == "短线·今日买入") {
+            // v2.12.30：短线·强势突破复用同一快照引擎，L3 复核在 analyzeShortSignal 内按策略名加门槛
+            // v2.12.31：#1/#2/#4/#5/#7 五个仓原始策略同样走短线快照引擎
+            val shortScreenNames = setOf(
+                "短线·今日买入", "短线·强势突破",
+                "#1 均线多头强势", "#2 回调低振幅买入", "#4 指标共振选股",
+                "#5 双均线动量", "#7 唐奇安窄幅突破"
+            )
+            if (strategy.name in shortScreenNames) {
                 runShortScreening(strategy)
                 return@Thread
             }
@@ -438,13 +476,17 @@ class ScreeningActivity : BaseActivity() {
                     Toast.makeText(this, "$source 暂未接入选股，已回退自动", Toast.LENGTH_LONG).show()
                 }
             }
-            val all: List<ScreenStock>
+            var all: List<ScreenStock>
             try {
                 all = when (chosen) {
                     "eastmoney" -> fetchEastmoney()
                     "tushare" -> fetchTushare()
                     "tickflow" -> fetchTickflow(strategy)
-                    "tencent" -> fetchTencent()
+                    "tencent" -> {
+                        val (list, label) = fetchTencentWithFallback(strategy)
+                        source = label
+                        list
+                    }
                     else -> {
                         // v2.6.0 自动：所有源按序尝试，腾讯优先
                         val (list, label) = fetchAuto(strategy)
@@ -453,16 +495,19 @@ class ScreeningActivity : BaseActivity() {
                     }
                 }
             } catch (e: Exception) {
+                AppLog.record(this, source, "选股失败", failMessage(e))
                 runOnUiThread {
-                    binding.screenStatus.text = "获取失败：${e.message}"
-                    Toast.makeText(this, "获取失败：${e.message}", Toast.LENGTH_LONG).show()
+                    val msg = failMessage(e)
+                    binding.screenStatus.text = "获取失败：$msg"
+                    Toast.makeText(this, "获取失败：$msg", Toast.LENGTH_LONG).show()
                     running = false
                     binding.btnRunScreen.isEnabled = true
                 }
                 return@Thread
             }
+            all = enrichWithZhitu(all)
             val filtered = Screening.applyFilters(all, strategy)
-            val scored = Screening.score(filtered, strategy).take(60)
+            val scored = Screening.score(filtered, strategy, Prefs.riskWeight(this).toDouble(), Prefs.costWeight(this).toDouble()).take(60)
 
             // 保存历史选股（时间 + 策略 + 数据源 + 股票列表）
             Prefs.saveScreenHistory(
@@ -476,6 +521,7 @@ class ScreeningActivity : BaseActivity() {
                     stocks = scored.take(30).map { ScreenHistoryStock(it.first.code, it.first.name, it.second) }
                 )
             )
+            AppLog.record(this, source, "选股完成", "全市场 ${all.size}，符合 ${filtered.size}，展示 ${scored.size}")
 
             // 前 10 只候选检索相关新闻标题（未配置新闻源时跳过）
             val newsMap = HashMap<String, String>()
@@ -498,11 +544,11 @@ class ScreeningActivity : BaseActivity() {
                 binding.btnRunScreen.isEnabled = true
                 running = false
                 if (scored.isEmpty()) {
-                    binding.screenStatus.text = "共 ${all.size} 只（$source），无符合条件股票"
+                    binding.screenStatus.text = "共 ${all.size} 只（$source${cacheHint()}），无符合条件股票"
                 } else {
                     val newsHint = if (newsMap.isNotEmpty()) "，已参考新闻 ${newsMap.size} 只" else ""
                     binding.screenStatus.text =
-                        "全市场 ${all.size} 只（$source）→ 符合条件 ${filtered.size} 只 → 显示评分前 ${scored.size}$newsHint"
+                        "全市场 ${all.size} 只（$source${cacheHint()}）→ 符合条件 ${filtered.size} 只 → 显示评分前 ${scored.size}$newsHint"
                 }
                 resultItems = scored
                 resultNews = newsMap
@@ -534,13 +580,17 @@ class ScreeningActivity : BaseActivity() {
                 Toast.makeText(this, "$source 暂未接入选股，已回退自动", Toast.LENGTH_LONG).show()
             }
         }
-        val all: List<ScreenStock>
+        var all: List<ScreenStock>
         try {
             all = when (chosen) {
                 "eastmoney" -> fetchEastmoney()
                 "tushare" -> fetchTushare()
                 "tickflow" -> fetchTickflow(strategy)
-                "tencent" -> fetchTencent()
+                "tencent" -> {
+                    val (list, label) = fetchTencentWithFallback(strategy)
+                    source = label
+                    list
+                }
                 else -> {
                     // v2.6.0 自动：所有源按序尝试，腾讯优先
                     val (list, label) = fetchAuto(strategy)
@@ -549,18 +599,22 @@ class ScreeningActivity : BaseActivity() {
                 }
             }
         } catch (e: Exception) {
+            AppLog.record(this, source, "选股失败", failMessage(e))
             runOnUiThread {
-                binding.screenStatus.text = "获取失败：${e.message}"
-                Toast.makeText(this, "获取失败：${e.message}", Toast.LENGTH_LONG).show()
+                val msg = failMessage(e)
+                binding.screenStatus.text = "获取失败：$msg"
+                Toast.makeText(this, "获取失败：$msg", Toast.LENGTH_LONG).show()
                 running = false
                 binding.btnRunScreen.isEnabled = true
             }
             return
         }
 
+        all = enrichWithZhitu(all)
+
         // 预筛 + 多因子评分 → Top 100 候选（并发拉日K）
         val filtered = Screening.applyFilters(all, strategy)
-        val preCand = Screening.score(filtered, strategy).take(100)
+        val preCand = Screening.score(filtered, strategy, Prefs.riskWeight(this).toDouble(), Prefs.costWeight(this).toDouble()).take(100)
         if (preCand.isEmpty()) {
             runOnUiThread {
                 binding.screenStatus.text = "全市场 ${all.size} 只（$source），预筛后无候选"
@@ -569,22 +623,32 @@ class ScreeningActivity : BaseActivity() {
             }
             return
         }
-        val executor = java.util.concurrent.Executors.newFixedThreadPool(6)
+        val shortFactorW = Prefs.shortFactorWeight(this).toDouble()
+        val executor = java.util.concurrent.Executors.newFixedThreadPool(screenConcurrency)
+        var failCount = 0
         try {
-            val futures = preCand.map { (st, _, _) ->
-                executor.submit<Pair<ScreenStock, Double>> {
-                    st to analyzeShortSignal(st)
+            val futures = preCand.map { (st, factor, _) ->
+                executor.submit<Triple<ScreenStock, Double, Double>> {
+                    Triple(st, factor, analyzeShortSignal(st, strategy))
                 }
             }
             val shortList = mutableListOf<Triple<ScreenStock, Double, Map<String, Double>>>()
             futures.forEachIndexed { i, f ->
                 try {
-                    val (st, signalScore) = f.get()
+                    val (st, factor, signalScore) = f.get()
                     if (signalScore > 0) {
-                        shortList.add(Triple(st, signalScore, emptyMap()))
+                        // 混合口径：0.6 截面因子分 + 0.4 快照信号分；「短线·今日买入」沿用纯快照分
+                        val mixedNames = setOf(
+                            "短线·强势突破", "#1 均线多头强势", "#2 回调低振幅买入",
+                            "#4 指标共振选股", "#5 双均线动量", "#7 唐奇安窄幅突破"
+                        )
+                        val finalScore = if (strategy.name in mixedNames)
+                            shortFactorW * factor + (1 - shortFactorW) * signalScore else signalScore
+                        // v2.12.35：透传截面因子分项（含风险/成本惩罚），供结果行展开打分依据
+                        shortList.add(Triple(st, finalScore, preCand[i].third))
                     }
                 } catch (e: Exception) {
-                    // 单只分析失败跳过
+                    failCount++
                 }
                 val done = i + 1
                 runOnUiThread { binding.screenStatus.text = "短线快照分析 $done/${futures.size}…" }
@@ -612,11 +676,12 @@ class ScreeningActivity : BaseActivity() {
                 )
             )
 
+            val failHint = if (failCount > 0) "，分析失败 $failCount 只" else ""
             runOnUiThread {
                 binding.btnRunScreen.isEnabled = true
                 running = false
                 binding.screenStatus.text =
-                    "全市场 ${all.size} 只（$source）→ 预筛 ${filtered.size} 只 → 快照信号买入 ${scored.size} 只"
+                    "全市场 ${all.size} 只（$source）→ 预筛 ${filtered.size} 只 → 快照信号买入 ${scored.size} 只$failHint"
                 resultItems = scored
                 resultNews = emptyMap()
                 resultSignals = signalMap
@@ -624,6 +689,7 @@ class ScreeningActivity : BaseActivity() {
             }
         } finally {
             executor.shutdown()
+            try { executor.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) { }
         }
     }
 
@@ -675,6 +741,8 @@ class ScreeningActivity : BaseActivity() {
             return
         }
 
+        all = enrichWithZhitu(all)
+
         // 热榜股票 → 快照（按代码对齐，北交所等未收录的自动跳过）
         val byCode = all.associateBy { it.code }
         val universe = pool.mapNotNull { h -> byCode[h.code]?.let { h to it } }
@@ -690,7 +758,7 @@ class ScreeningActivity : BaseActivity() {
         }
 
         // 因子评分（与其它策略同一套 6 因子模型）
-        val scored = Screening.score(filtered.map { it.second }, strategy)
+        val scored = Screening.score(filtered.map { it.second }, strategy, Prefs.riskWeight(this).toDouble(), Prefs.costWeight(this).toDouble())
         val hotByCode = filtered.associate { it.second.code to it.first }
         val poolSize = pool.size.coerceAtLeast(1)
 
@@ -773,6 +841,8 @@ class ScreeningActivity : BaseActivity() {
             return
         }
 
+        all = enrichWithZhitu(all)
+
         // 题材成分股 → 行情快照对齐（题材榜暂不可用时退化为全市场，只按中小市值 + 资金博弈筛选）
         val themeByCode = uni?.themeByCode ?: emptyMap()
         val themeHeat = uni?.themeHeat ?: emptyMap()
@@ -783,7 +853,7 @@ class ScreeningActivity : BaseActivity() {
         }
 
         val filtered = Screening.applyFilters(universe, strategy)
-        val scored = Screening.score(filtered, strategy)
+        val scored = Screening.score(filtered, strategy, Prefs.riskWeight(this).toDouble(), Prefs.costWeight(this).toDouble())
 
         // 题材热度分：直接用题材综合分（共识 45% + 活跃 30% + 话题 25%），个股分 × 0.78 + 热度 × 0.22
         val combined = scored.map { (st, factorScore, parts) ->
@@ -863,13 +933,17 @@ class ScreeningActivity : BaseActivity() {
                 Toast.makeText(this, "$source 暂未接入选股，已回退自动", Toast.LENGTH_LONG).show()
             }
         }
-        val all: List<ScreenStock>
+        var all: List<ScreenStock>
         try {
             all = when (chosen) {
                 "eastmoney" -> fetchEastmoney()
                 "tushare" -> fetchTushare()
                 "tickflow" -> fetchTickflow(strategy)
-                "tencent" -> fetchTencent()
+                "tencent" -> {
+                    val (list, label) = fetchTencentWithFallback(strategy)
+                    source = label
+                    list
+                }
                 else -> {
                     // v2.6.0 自动：所有源按序尝试，腾讯优先
                     val (list, label) = fetchAuto(strategy)
@@ -878,17 +952,21 @@ class ScreeningActivity : BaseActivity() {
                 }
             }
         } catch (e: Exception) {
+            AppLog.record(this, source, "选股失败", failMessage(e))
             runOnUiThread {
-                binding.screenStatus.text = "获取失败：${e.message}"
-                Toast.makeText(this, "获取失败：${e.message}", Toast.LENGTH_LONG).show()
+                val msg = failMessage(e)
+                binding.screenStatus.text = "获取失败：$msg"
+                Toast.makeText(this, "获取失败：$msg", Toast.LENGTH_LONG).show()
                 running = false
                 binding.btnRunScreen.isEnabled = true
             }
             return
         }
 
+        all = enrichWithZhitu(all)
+
         val filtered = Screening.applyFilters(all, strategy)
-        val preCand = Screening.score(filtered, strategy).take(60)
+        val preCand = Screening.score(filtered, strategy, Prefs.riskWeight(this).toDouble(), Prefs.costWeight(this).toDouble()).take(60)
         if (preCand.isEmpty()) {
             runOnUiThread {
                 binding.screenStatus.text = "全市场 ${all.size} 只（$source），预筛后无候选"
@@ -898,7 +976,8 @@ class ScreeningActivity : BaseActivity() {
             return
         }
 
-        val executor = java.util.concurrent.Executors.newFixedThreadPool(6)
+        val executor = java.util.concurrent.Executors.newFixedThreadPool(screenConcurrency)
+        var failCount = 0
         try {
             val futures = preCand.map { (st, score, parts) ->
                 executor.submit<Pair<Triple<ScreenStock, Double, Map<String, Double>>, Int>> {
@@ -922,7 +1001,7 @@ class ScreeningActivity : BaseActivity() {
                             if (sc >= 3) "新闻情绪：强利好(+$sc)" else "新闻情绪：利好(+$sc)"
                     }
                 } catch (e: Exception) {
-                    // 单只检索失败跳过
+                    failCount++
                 }
                 val done = i + 1
                 runOnUiThread { binding.screenStatus.text = "新闻情绪分析 $done/${futures.size}…" }
@@ -948,11 +1027,12 @@ class ScreeningActivity : BaseActivity() {
             // 腾讯日K失败自动回退 TickFlow 批量日K；所有策略信号筛选生效
             val signalMap = if (scored.isNotEmpty()) buildSnapshotSignals(scored) else HashMap<String, String>()
 
+            val failHint = if (failCount > 0) "，检索失败 $failCount 只" else ""
             runOnUiThread {
                 binding.btnRunScreen.isEnabled = true
                 running = false
                 binding.screenStatus.text =
-                    "全市场 ${all.size} 只（$source）→ 预筛 ${filtered.size} 只 → 新闻利好 ${scored.size} 只"
+                    "全市场 ${all.size} 只（$source）→ 预筛 ${filtered.size} 只 → 新闻利好 ${scored.size} 只$failHint"
                 resultItems = scored
                 resultNews = newsMap
                 resultSignals = signalMap
@@ -960,6 +1040,7 @@ class ScreeningActivity : BaseActivity() {
             }
         } finally {
             executor.shutdown()
+            try { executor.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) { }
         }
     }
 
@@ -975,7 +1056,7 @@ class ScreeningActivity : BaseActivity() {
         val signalMap = HashMap<String, String>()
         if (scored.isEmpty()) return signalMap
 
-        val exec = java.util.concurrent.Executors.newFixedThreadPool(6)
+        val exec = java.util.concurrent.Executors.newFixedThreadPool(screenConcurrency)
         try {
             val futures = scored.map { (st, _, _) ->
                 exec.submit<Pair<ScreenStock, String?>> { st to analyzeSnapshotSignal(st) }
@@ -984,12 +1065,13 @@ class ScreeningActivity : BaseActivity() {
                 try {
                     val (st, sig) = f.get()
                     if (!sig.isNullOrBlank()) signalMap[st.code] = sig
-                } catch (e: Exception) { /* 单只失败跳过 */ }
+                } catch (e: Exception) { /* 单只失败跳过（该股无信号徽标） */ }
                 val done = i + 1
                 runOnUiThread { binding.screenStatus.text = "快照信号分析 $done/${futures.size}…" }
             }
         } finally {
             exec.shutdown()
+            try { exec.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) { }
         }
         return signalMap
     }
@@ -1006,9 +1088,10 @@ class ScreeningActivity : BaseActivity() {
         } catch (e: Exception) { null }
     }
 
-    /** v2.6.3：快照日K回退链：腾讯主域 → 腾讯备用域 → 新浪（东财接口在部分网络不可达已剔除） */
+    /** v2.6.3：快照日K回退链：腾讯主域 → 腾讯备用域 → 新浪（东财接口在部分网络不可达已剔除）；v2.12.35 会话内内存缓存 */
     private fun fetchSnapshotKline(code: String): List<KLineBar> {
-        return try {
+        SnapshotCache.getKline(code)?.let { return it }
+        val bars = try {
             TencentApi.fetchDailyKline(code, 120)
         } catch (e: Exception) {
             try {
@@ -1017,31 +1100,98 @@ class ScreeningActivity : BaseActivity() {
                 SinaApi.fetchDailyKline(code, 120)
             }
         }
+        SnapshotCache.putKline(code, bars)
+        return bars
     }
 
-    private fun analyzeShortSignal(st: ScreenStock): Double {
+    private fun analyzeShortSignal(st: ScreenStock, strategy: ScreenStrategy): Double {
         try {
-            val bars = TencentApi.fetchDailyKline(st.code, 120)
+            val bars = fetchSnapshotKline(st.code)
             val r = Analyzer.analyze(bars, st.code)
-            return if (r.buySignal == "BUY" || r.buySignal == "STRONG_BUY") r.signalScore.toDouble() else 0.0
+            if (r.buySignal != "BUY" && r.buySignal != "STRONG_BUY") return 0.0
+            // L3 快照复核门槛（按策略名分设；#4 指标共振仅要求快照买入信号，不加额外门槛）
+            when (strategy.name) {
+                "短线·强势突破" -> {
+                    if (r.volumeStatus == "HEAVY_VOLUME_DOWN") return 0.0   // 放量下跌否决
+                    if (r.rsi12 < 40.0) return 0.0                            // 弱势不入选
+                    val trendOk = r.nearBreakout || r.currentPrice >= r.ma20 ||
+                        r.trendStatus in setOf("STRONG_BULL", "BULL")
+                    if (!trendOk) return 0.0                                  // 需临近突破或站上MA20/多头
+                    if (r.range4d > 15.0) return 0.0                          // 高波动剔除
+                }
+                "#1 均线多头强势" -> {
+                    // #1：均线多头或站上 MA20 确认趋势
+                    val trendOk = r.trendStatus in setOf("STRONG_BULL", "BULL") ||
+                        r.currentPrice >= r.ma20
+                    if (!trendOk) return 0.0
+                }
+                "#2 回调低振幅买入" -> {
+                    // #2 #020：近 4 日低振幅（≤10%）且回踩不破 MA5
+                    if (r.range4d > 10.0) return 0.0
+                    if (r.currentPrice < r.ma5) return 0.0
+                }
+                "#5 双均线动量" -> {
+                    // #5：站上 MA5 且 MA5≥MA10（双均线多头排列代理）
+                    if (r.currentPrice < r.ma5 || r.ma5 < r.ma10) return 0.0
+                }
+                "#7 唐奇安窄幅突破" -> {
+                    // #7：临近 20 日高点或窄幅整理，且近 4 日振幅 ≤15%
+                    if (!(r.nearBreakout || r.tightRange)) return 0.0
+                    if (r.range4d > 15.0) return 0.0
+                }
+            }
+            // v2.12.35 A1：低波风险腿——年化实现波动 / Parkinson 波动作为风险输入；
+            // 窗口不足（annVol=0）中性不罚；极端高波否决，偏高波动对信号分折让。
+            var score = r.signalScore.toDouble()
+            val ann = r.annVol
+            val pk = r.parkinsonVol
+            if (ann > 55.0 || pk > 55.0) return 0.0
+            if (ann > 45.0 || pk > 45.0) score *= 0.9
+
+            // v2.12.35 B2：候选层量能稳定性——近 5 日均量较近 20 日骤降（流动性收缩）排后；
+            // 「缩量回踩」策略本身以缩量为特征，豁免该否决。
+            if (bars.size >= 20 && strategy.name != "缩量回踩") {
+                val v5 = bars.takeLast(5).map { it.volume }.average()
+                val v20 = bars.takeLast(20).map { it.volume }.average()
+                if (v20 > 0 && v5 / v20 < 0.4) return 0.0
+            }
+            return score
         } catch (e: Exception) {
             return 0.0
         }
     }
 
-    private fun fetchEastmoney(): List<ScreenStock> =
+    /** 缓存命中时的状态栏标注 */
+    private fun cacheHint(): String = if (snapshotFromCache) "（近5分钟缓存）" else ""
+
+    /** v2.12.35：快照按源 + 交易日短时缓存（C2）；命中复用，未命中拉取后回写 */
+    private fun cachedSnapshot(source: String, block: () -> List<ScreenStock>): List<ScreenStock> {
+        SnapshotCache.getSnapshot(this, source)?.let {
+            snapshotFromCache = true
+            return it
+        }
+        val list = block()
+        if (list.isNotEmpty()) SnapshotCache.putSnapshot(this, source, list)
+        snapshotFromCache = false
+        return list
+    }
+
+    private fun fetchEastmoney(): List<ScreenStock> = cachedSnapshot("eastmoney") {
         EastmoneyApi.fetchAllStocks { done, total ->
             runOnUiThread {
                 binding.screenStatus.text = "获取市场数据 $done/$total…"
             }
         }
+    }
 
     private fun fetchTushare(): List<ScreenStock> {
         val token = Prefs.tushareToken(this)
         if (token.isBlank()) throw RuntimeException("未配置 Tushare Token（设置 → Tushare Token）")
-        return TushareApi.fetchAllStocks(this, token) { done, total ->
-            runOnUiThread {
-                binding.screenStatus.text = "获取 Tushare 数据 $done/$total…"
+        return cachedSnapshot("tushare") {
+            TushareApi.fetchAllStocks(this, token) { done, total ->
+                runOnUiThread {
+                    binding.screenStatus.text = "获取 Tushare 数据 $done/$total…"
+                }
             }
         }
     }
@@ -1049,10 +1199,63 @@ class ScreeningActivity : BaseActivity() {
     /**
      * 腾讯自选股选股（v2.3.0，免费，无需 Key）：rank 接口翻页拉全市场，字段全就绪
      */
-    private fun fetchTencent(): List<ScreenStock> {
-        return TencentScreenApi.fetchAllStocks { done, total ->
+    private fun fetchTencent(): List<ScreenStock> = cachedSnapshot("tencent") {
+        TencentScreenApi.fetchAllStocks { done, total ->
             runOnUiThread { binding.screenStatus.text = "获取腾讯数据 $done/$total…" }
+        }.first
+    }
+
+    /** 腾讯快照视为完整的最小只数：低于该值判定翻页断流/被限流，触发跨源补页 */
+    private val tencentMinComplete = 3000
+
+    private fun sourceLabel(id: String): String = when (id) {
+        "eastmoney" -> "东方财富"; "tushare" -> "Tushare"; "tickflow" -> "TickFlow"
+        "tencent" -> "腾讯"; "miaoxiang" -> "MiaoXiang"; "futu" -> "Futu"; else -> "自动"
+    }
+
+    /**
+     * v2.12.39 腾讯快照 + 断流补页：腾讯翻页完整且数量达标则直接用；否则按
+     * 东财 → Tushare → TickFlow 拉兜底源，按代码合并补缺（腾讯已有记录优先）。
+     * 返回(快照列表, 来源标注)。
+     */
+    private fun fetchTencentWithFallback(strategy: ScreenStrategy): Pair<List<ScreenStock>, String> {
+        var tencentComplete = false
+        val primary = cachedSnapshot("tencent") {
+            val (list, complete) = TencentScreenApi.fetchAllStocks { done, total ->
+                runOnUiThread { binding.screenStatus.text = "获取腾讯数据 $done/$total…" }
+            }
+            tencentComplete = complete
+            list
         }
+        if (primary.isNotEmpty() && tencentComplete && primary.size >= tencentMinComplete) {
+            return Pair(primary, "腾讯")
+        }
+
+        runOnUiThread {
+            binding.screenStatus.text = "腾讯数据不完整（${primary.size} 只），切换其他源补齐…"
+        }
+        val fallbacks = listOf(
+            "eastmoney" to { fetchEastmoney() },
+            "tushare" to { fetchTushare() },
+            "tickflow" to { fetchTickflow(strategy) }
+        )
+        val merged = primary.toMutableList()
+        val seen = primary.map { it.code }.toHashSet()
+        var used = "腾讯"
+        for ((id, block) in fallbacks) {
+            try {
+                val extra = block()
+                if (extra.isEmpty()) continue
+                for (st in extra) {
+                    if (seen.add(st.code)) merged.add(st)
+                }
+                used = "腾讯+${sourceLabel(id)}"
+                if (merged.size >= tencentMinComplete) break
+            } catch (e: Exception) {
+                AppLog.record(this, sourceLabel(id), "补页失败", failMessage(e))
+            }
+        }
+        return Pair(merged, used)
     }
 
     /**
@@ -1063,14 +1266,32 @@ class ScreeningActivity : BaseActivity() {
     private fun fetchTickflow(strategy: ScreenStrategy): List<ScreenStock> {
         val key = Prefs.tickflowKey(this)
         if (key.isBlank()) throw RuntimeException("未配置 TickFlow API Key（设置 → TickFlow API Key）")
-        val full = TickFlowApi.fetchAllStocks(key) { done, total ->
-            runOnUiThread { binding.screenStatus.text = "获取 TickFlow 数据 $done/$total…" }
+        return cachedSnapshot("tickflow") {
+            val full = TickFlowApi.fetchAllStocks(key) { done, total ->
+                runOnUiThread { binding.screenStatus.text = "获取 TickFlow 数据 $done/$total…" }
+            }
+            // 粗筛：量比暂不判断（真实量比需候选补算），并限制候选规模
+            val pre = Screening.applyFilters(full, strategy.copy(vrMin = null, vrMax = null)).take(600)
+            if (pre.isEmpty()) return@cachedSnapshot emptyList()
+            TickFlowApi.enrichMomentum(key, pre) { done, total ->
+                runOnUiThread { binding.screenStatus.text = "TickFlow 补算量比/动量 $done/$total…" }
+            }
         }
-        // 粗筛：量比暂不判断（真实量比需候选补算），并限制候选规模
-        val pre = Screening.applyFilters(full, strategy.copy(vrMin = null, vrMax = null)).take(600)
-        if (pre.isEmpty()) return emptyList()
-        return TickFlowApi.enrichMomentum(key, pre) { done, total ->
-            runOnUiThread { binding.screenStatus.text = "TickFlow 补算量比/动量 $done/$total…" }
+    }
+
+    /**
+     * v2.12.40：配置了智兔数服 Token 时，用沪深股通成分快照为已取到的主链结果保守补缺字段
+     * （只补主链缺失/为 0 的 PE/PB/市值/换手/量比/60日涨跌等，不用 0 冲掉已有值）；
+     * 未配置 Token 或拉取失败时原样返回主链，不阻断选股。
+     */
+    private fun enrichWithZhitu(all: List<ScreenStock>): List<ScreenStock> {
+        val token = Prefs.zhituToken(this)
+        if (token.isBlank()) return all
+        return try {
+            ZhituApi.enrich(token, all)
+        } catch (e: Exception) {
+            AppLog.record(this, "智兔数服", "成分快照补缺失败", failMessage(e))
+            all
         }
     }
 

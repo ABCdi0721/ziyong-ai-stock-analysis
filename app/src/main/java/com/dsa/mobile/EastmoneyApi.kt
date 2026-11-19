@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 object EastmoneyApi {
 
     private const val FIELDS =
-        "f2,f3,f5,f6,f8,f9,f10,f12,f14,f20,f23,f24"
+        "f2,f3,f5,f6,f8,f9,f10,f12,f14,f15,f16,f20,f23,f24"
 
     private const val FS =
         "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23" // 深主板+创业板+沪主板+科创板
@@ -80,7 +80,10 @@ object EastmoneyApi {
                     pb = o.optDouble("f23", 0.0),
                     totalMv = o.optDouble("f20", 0.0) / 1e8,
                     amount = o.optDouble("f6", 0.0),
-                    change60d = o.optDouble("f24", 0.0)
+                    change60d = o.optDouble("f24", 0.0),
+                    high = o.optDouble("f15", 0.0),
+                    low = o.optDouble("f16", 0.0),
+                    volume = o.optDouble("f5", 0.0).toLong()
                 )
             )
         }

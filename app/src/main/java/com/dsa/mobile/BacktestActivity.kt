@@ -77,28 +77,32 @@ class BacktestActivity : BaseActivity() {
             binding.btStatus.text = "数据不足（<30 根），无法回测"
             return
         }
-        val r = Backtest.run(bars, currentStrategy)
+        val r = Backtest.run(bars, currentStrategy, code)
         val color = if (r.totalReturn >= 0) 0xFFE53935.toInt() else 0xFF43A047.toInt()
         // v2.6.0：回测完成 → 通知栏推送，点击跳回回测结果页
         done = true
         Notifier.showDone(
             this, code, "backtest",
             "「$name」A股回测完成",
-            "策略 $currentStrategy · 总收益 ${String.format("%+.2f%%", r.totalReturn)}，点击查看",
+            "策略 $currentStrategy · 扣费后 ${String.format("%+.2f%%", r.totalReturn)}，点击查看",
             Intent(this, BacktestActivity::class.java)
                 .putExtra("code", code)
                 .putExtra("name", name)
         )
         binding.btResult.text = buildString {
             append("策略：${currentStrategy}　（${bars.first().date} ~ ${bars.last().date}，共 ${bars.size} 根日K）\n\n")
-            append("总收益率：${String.format("%+.2f%%", r.totalReturn)}")
-            append("　　年化：${String.format("%+.2f%%", r.annualReturn)}")
+            append("扣费后总收益：${String.format("%+.2f%%", r.totalReturn)}")
+            append("　　扣费前：${String.format("%+.2f%%", r.grossReturn)}")
             append("\n")
-            append("最大回撤：-${String.format("%.2f%%", r.maxDrawdown)}")
-            append("　　胜率：${String.format("%.1f%%", r.winRate)}")
-            append("\n交易次数：${r.tradeCount}　　")
-            append("同期买入持有：${String.format("%+.2f%%", r.buyHoldReturn)}")
-            append("\n\n说明：初始资金 10 万，全仓买卖，不含手续费。仅供技术研究，不构成投资建议。")
+            append("年化：${String.format("%+.2f%%", r.annualReturn)}")
+            append("　　最大回撤：-${String.format("%.2f%%", r.maxDrawdown)}")
+            append("\n胜率：${String.format("%.1f%%", r.winRate)}")
+            append("　　盈亏比：${String.format("%.2f", r.profitLossRatio)}")
+            append("\n交易次数：${r.tradeCount}　　累计成本：${String.format("%.2f", r.totalCost)} 元")
+            append("\n同期买入持有：${String.format("%+.2f%%", r.buyHoldReturn)}")
+            append("\n\n说明：初始资金 10 万，100 股整手，T+1，信号次日开盘成交；")
+            append("含双边佣金（万2.5，最低5元）、卖出印花税千0.5、滑点0.1%，")
+            append("封涨停不买入、封跌停顺延。仅供技术研究，不构成投资建议。")
         }
         binding.btStatus.text = "回测完成：${currentStrategy}"
 

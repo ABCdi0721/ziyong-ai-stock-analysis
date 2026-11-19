@@ -16,24 +16,30 @@ object TencentScreenApi {
         "https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList?board_code=aStock&sort_type=price&direct=down&offset=%d&count=200"
     private const val MAX_PAGES = 30
 
-    /** 拉取全市场 A 股快照（ScreenStock 全字段就绪） */
-    fun fetchAllStocks(onPage: (done: Int, total: Int) -> Unit = { _, _ -> }): List<ScreenStock> {
+    /**
+     * 拉取全市场 A 股快照。
+     * 返回 Pair(列表, 是否完整)：翻页自然结束（末页不足 200 或达上限）记为完整；
+     * 中途某页请求失败/返回空导致提前中断，记为不完整，供上层换源补页。
+     */
+    fun fetchAllStocks(onPage: (done: Int, total: Int) -> Unit = { _, _ -> }): Pair<List<ScreenStock>, Boolean> {
         val out = mutableListOf<ScreenStock>()
-        val first = fetchPage(0)
-        if (first.isEmpty()) return out
+        val first = try { fetchPage(0) } catch (e: Exception) { return Pair(emptyList(), false) }
+        if (first.isEmpty()) return Pair(emptyList(), false)
         out.addAll(first)
         val total = if (first.size < 200) 1 else MAX_PAGES
         onPage(1, total)
         var page = 1
+        var complete = false
         while (page < MAX_PAGES) {
-            val batch = fetchPage(page * 200)
+            val batch = try { fetchPage(page * 200) } catch (e: Exception) { break }
             if (batch.isEmpty()) break
             out.addAll(batch)
             onPage(page + 1, total)
-            if (batch.size < 200) break
+            if (batch.size < 200) { complete = true; break }
             page++
         }
-        return out
+        if (page >= MAX_PAGES) complete = true
+        return Pair(out, complete)
     }
 
     private fun fetchPage(offset: Int): List<ScreenStock> {

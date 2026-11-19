@@ -33,5 +33,6 @@
         <activity android:name=".SettingsActivity" />
         <activity android:name=".ThemeActivity" />
         <activity android:name=".BackupActivity" />
+        <activity android:name=".AboutActivity" />
     </application>
 </manifest>

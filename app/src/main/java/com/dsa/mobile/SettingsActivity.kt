@@ -59,6 +59,7 @@ class SettingsActivity : BaseActivity() {
         binding.etTickflowKey.setText(Prefs.tickflowKey(this))
         binding.etMxApiKey.setText(Prefs.mxApiKey(this))
         binding.etFutuHost.setText(Prefs.futuHost(this))
+        binding.etZhituToken.setText(Prefs.zhituToken(this))
         binding.swRemoteIndex.isChecked = Prefs.remoteIndexEnabled(this)
 
         binding.spTickflowAdj.adapter = ArrayAdapter(this, R.layout.spinner_item, adjModes)
@@ -94,6 +95,9 @@ class SettingsActivity : BaseActivity() {
         binding.spFutuPriority.setSelection(futuPrio.indexOf(Prefs.futuPriority(this)).coerceAtLeast(0))
 
         binding.swChipEnabled.isChecked = Prefs.chipEnabled(this)
+        binding.etRiskWeight.setText(fmtTemp(Prefs.riskWeight(this).toDouble()))
+        binding.etCostWeight.setText(fmtTemp(Prefs.costWeight(this).toDouble()))
+        binding.etShortFactorW.setText(fmtTemp(Prefs.shortFactorWeight(this).toDouble()))
         binding.etNewsBocha.setText(Prefs.bochaKeys(this))
         binding.etNewsTavily.setText(Prefs.tavilyKeys(this))
         binding.etNewsSerpapi.setText(Prefs.serpapiKeys(this))
@@ -108,7 +112,8 @@ class SettingsActivity : BaseActivity() {
             binding.etLlmBaseUrl, binding.etLlmKey, binding.etLlmModel, binding.etLlmFallback,
             binding.etLlmTemperature,
             binding.etNewsBocha, binding.etNewsTavily, binding.etNewsSerpapi,
-            binding.etNewsBrave, binding.etNewsMinimax, binding.etNewsSearxng
+            binding.etNewsBrave, binding.etNewsMinimax, binding.etNewsSearxng,
+            binding.etRiskWeight, binding.etCostWeight, binding.etShortFactorW
         ).forEach { et ->
             et.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -419,6 +424,15 @@ class SettingsActivity : BaseActivity() {
         val batch = binding.etTickflowBatch.text.toString().toIntOrNull()
             ?.takeIf { it > 0 } ?: Prefs.tickflowBatchSize(this)
 
+        // v2.12.36：选股权重，解析失败/越界保持旧值
+        val riskW = binding.etRiskWeight.text.toString().toFloatOrNull()
+            ?.takeIf { it in 0f..0.6f } ?: Prefs.riskWeight(this)
+        val costW = binding.etCostWeight.text.toString().toFloatOrNull()
+            ?.takeIf { it in 0f..0.4f } ?: Prefs.costWeight(this)
+        val shortW = binding.etShortFactorW.text.toString().toFloatOrNull()
+            ?.takeIf { it in 0f..1f } ?: Prefs.shortFactorWeight(this)
+        Prefs.saveWeights(this, riskW, costW, shortW)
+
         Prefs.saveSettings(
             this,
             binding.etTushareToken.text.toString(),
@@ -430,6 +444,7 @@ class SettingsActivity : BaseActivity() {
             binding.etTickflowKey.text.toString(),
             binding.etMxApiKey.text.toString(),
             binding.etFutuHost.text.toString(),
+            binding.etZhituToken.text.toString(),
             binding.swRemoteIndex.isChecked,
             adjModes[binding.spTickflowAdj.selectedItemPosition],
             binding.swTickflowPrefetch.isChecked,

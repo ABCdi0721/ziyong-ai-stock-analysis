@@ -93,7 +93,7 @@ class ScreenHistoryActivity : BaseActivity() {
     private fun showStocks(h: ScreenHistory) {
         if (h.stocks.isEmpty()) {
             AlertDialog.Builder(this)
-                .setTitle("${h.strategy} · ${h.time}")
+                .setTitle("${Screening.displayName(h.strategy)} · ${h.time}")
                 .setMessage("无符合条件的股票")
                 .setPositiveButton("关闭", null)
                 .show()
@@ -103,7 +103,7 @@ class ScreenHistoryActivity : BaseActivity() {
             "${i + 1}. ${s.name + boardSuffix(s.code)}（${s.code}）  评分 ${s.score.toInt()}"
         }.toTypedArray()
         AlertDialog.Builder(this)
-            .setTitle("${h.strategy} · ${h.time}（${h.stocks.size} 只）")
+            .setTitle("${Screening.displayName(h.strategy)} · ${h.time}（${h.stocks.size} 只）")
             .setItems(labels) { _, which ->
                 val s = h.stocks[which]
                 startActivity(
@@ -139,7 +139,7 @@ class ScreenHistoryActivity : BaseActivity() {
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val h = items[position]
             val b = holder.binding
-            b.shStrategy.text = h.strategy
+            b.shStrategy.text = Screening.displayName(h.strategy)
             b.shCount.text = "${h.matched} 只符合"
             b.shMeta.text = "时间：${h.time}    数据源：${h.source}    全市场 ${h.total} 只"
 

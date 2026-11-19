@@ -94,6 +94,7 @@ class HistoryFragment : Fragment() {
     private fun setupBar(b: FragmentHistoryBinding) {
         b.hBtnDelete.setOnClickListener { confirmDeleteSelected() }
         b.hBtnCancel.setOnClickListener { exitSelection() }
+        b.hBtnCheck.setOnClickListener { checkErrorReports() }
         b.hSelectAll.setOnClickListener {
             val a = adapter ?: return@setOnClickListener
             if (b.hSelectAll.isChecked) a.selectAll() else a.clearSelection()
@@ -253,6 +254,34 @@ class HistoryFragment : Fragment() {
         Prefs.replaceHistory(ctx, remaining)
         exitSelection()
         load()
+    }
+
+    // ---------- 报错报告检测清理 ----------
+
+    private fun checkErrorReports() {
+        val ctx = requireContext()
+        val errors = Prefs.detectErrorReports(ctx)
+        if (errors.isEmpty()) {
+            android.widget.Toast.makeText(
+                ctx, "未发现含报错信息的报告", android.widget.Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        val preview = errors.take(5).joinToString("\n") { "· ${it.name}（${it.code}）" }
+        val more = if (errors.size > 5) "\n…其余 ${errors.size - 5} 条" else ""
+        AlertDialog.Builder(ctx)
+            .setTitle("检测到 ${errors.size} 条报错报告")
+            .setMessage(
+                "以下报告正文含报错/异常或整段英文错误信息：\n$preview$more\n\n是否自动删除？删除后不可恢复。"
+            )
+            .setPositiveButton("删除") { _, _ ->
+                deleteItems(errors)
+                android.widget.Toast.makeText(
+                    ctx, "已删除 ${errors.size} 条报错报告", android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // ---------- 打开报告 ----------

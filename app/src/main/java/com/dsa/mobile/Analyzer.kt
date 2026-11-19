@@ -33,6 +33,9 @@ object Analyzer {
     val SIGNAL_ZH = mapOf(
         "STRONG_BUY" to "强烈买入", "BUY" to "买入", "WAIT" to "观望", "SELL" to "卖出", "STRONG_SELL" to "强烈卖出"
     )
+    val REGIME_ZH = mapOf(
+        "strong_trend" to "强趋势", "weak_trend" to "弱趋势", "ranging" to "震荡", "transition" to "过渡"
+    )
 
     fun analyze(bars: List<KLineBar>, code: String): AnalysisResult {
         val n = bars.size
@@ -48,6 +51,8 @@ object Analyzer {
         }
 
         val close = DoubleArray(n) { bars[it].close }
+        val high = DoubleArray(n) { bars[it].high }
+        val low = DoubleArray(n) { bars[it].low }
         val ma5 = Indicators.sma(close, 5)
         val ma10 = Indicators.sma(close, 10)
         val ma20 = Indicators.sma(close, 20)
@@ -60,6 +65,91 @@ object Analyzer {
         val latest = n - 1
         val price = close[latest]
         val m5 = ma5[latest]; val m10 = ma10[latest]; val m20 = ma20[latest]; val m60 = ma60[latest]
+
+        // ===== v2.12.30 突破/整理/波动复核（ATR / 唐奇安 / 近4日振幅 / NR7）=====
+        val atrArr = if (n >= 14) Indicators.atr(high, low, close, 14) else DoubleArray(n) { Double.NaN }
+        val atr14 = if (!atrArr[latest].isNaN()) atrArr[latest] else 0.0
+        val dc = if (n >= 20) Indicators.donchian(high, low, 20)
+        else Pair(DoubleArray(n) { Double.NaN }, DoubleArray(n) { Double.NaN })
+        val dcHigh = if (!dc.first[latest].isNaN()) dc.first[latest] else 0.0
+        val dcLow = if (!dc.second[latest].isNaN()) dc.second[latest] else 0.0
+
+        val win4 = minOf(4, n)
+        var h4 = Double.MIN_VALUE; var l4 = Double.MAX_VALUE
+        for (i in n - win4 until n) { h4 = maxOf(h4, high[i]); l4 = minOf(l4, low[i]) }
+        val range4d = if (l4 > 0) (h4 - l4) / l4 * 100 else 0.0
+
+        val win7 = minOf(7, n)
+        val dayRanges = DoubleArray(win7) { i -> val idx = n - win7 + i; high[idx] - low[idx] }
+        val todayRange = dayRanges.last()
+        val nr7 = win7 >= 7 && dayRanges.all { it >= todayRange - 1e-9 }
+
+        val nearBreakout = dcHigh > 0 && price >= dcHigh * 0.95
+        val tightRange = range4d <= 12.0
+        val stopRef = minOf(if (m10 > 0) m10 else price, l4)
+
+        // ===== v2.12.33 OpenBB 移植指标（ADX/DI/Chop/Regime/Aroon/量价流/波动/Clenow/Hurst/突破/交叉/风险调整）=====
+        val volArr = LongArray(n) { bars[it].volume }
+        val adxTriple = if (n >= 15) Indicators.adx(high, low, close, 14)
+            else Triple(DoubleArray(n) { Double.NaN }, DoubleArray(n) { Double.NaN }, DoubleArray(n) { Double.NaN })
+        val adx14 = if (!adxTriple.first[latest].isNaN()) adxTriple.first[latest] else 0.0
+        val plusDi = if (!adxTriple.second[latest].isNaN()) adxTriple.second[latest] else 0.0
+        val minusDi = if (!adxTriple.third[latest].isNaN()) adxTriple.third[latest] else 0.0
+        val chopArr = if (n >= 14) Indicators.choppiness(high, low, close, 14) else DoubleArray(n) { Double.NaN }
+        val chop14 = if (!chopArr[latest].isNaN()) chopArr[latest] else 0.0
+
+        // Regime 四态（OpenBB regime 口径：ADX>25 且 Chop<38.2 强趋势；ADX>12.5 弱趋势；Chop>61.8 震荡；其余过渡）
+        val regime = when {
+            adx14 > 25 && chop14 > 0 && chop14 < 38.2 -> "strong_trend"
+            adx14 > 12.5 -> "weak_trend"
+            chop14 > 61.8 -> "ranging"
+            adx14 > 0 || chop14 > 0 -> "transition"
+            else -> ""
+        }
+
+        val aroonTriple = if (n >= 25) Indicators.aroon(high, low, 25)
+            else Triple(DoubleArray(n) { Double.NaN }, DoubleArray(n) { Double.NaN }, DoubleArray(n) { Double.NaN })
+        val aroonUp = if (!aroonTriple.first[latest].isNaN()) aroonTriple.first[latest] else 0.0
+        val aroonDown = if (!aroonTriple.second[latest].isNaN()) aroonTriple.second[latest] else 0.0
+
+        val obvArr = Indicators.obv(close, volArr)
+        val adArr = Indicators.adLine(high, low, close, volArr)
+        val adoscArr = Indicators.adosc(adArr)
+        val adosc = adoscArr[latest]
+        val obvSlope = if (n >= 6) {
+            val d = obvArr[latest] - obvArr[latest - 5]
+            val base = maxOf(abs(obvArr[latest - 5]), 1.0)
+            (d / base).coerceIn(-1.0, 1.0)
+        } else 0.0
+        val vwapArr = Indicators.vwap(high, low, close, volArr)
+        val vwap = if (!vwapArr[latest].isNaN()) vwapArr[latest] else 0.0
+
+        val rvArr = Indicators.realizedVolatility(close, 30)
+        val annVol = if (!rvArr[latest].isNaN()) rvArr[latest] * 100 else 0.0
+        val pkArr = Indicators.parkinsonVolatility(high, low, 30)
+        val parkinsonVol = if (!pkArr[latest].isNaN()) pkArr[latest] * 100 else 0.0
+
+        val clenow = Indicators.clenow(close, 90)
+        val clenowFactor = if (!clenow.factor.isNaN()) clenow.factor else 0.0
+        val clenowR2 = if (!clenow.r2.isNaN()) clenow.r2 else 0.0
+        val hurstV = Indicators.hurst(close)
+        val hurst = if (!hurstV.isNaN()) hurstV else 0.0
+
+        val brk = Indicators.breakoutSignal(high, low, close, 20)
+        val breakoutDir = brk?.direction ?: "none"
+        val breakoutMag = brk?.magnitude ?: 0.0
+        val breakoutBars = brk?.barsInRange ?: 0
+
+        val cross = Indicators.maCross(ma5, ma20)
+        val maCrossDir = cross?.direction ?: "none"
+        val maCrossDist = cross?.distance ?: 0.0
+
+        val rs = Indicators.returnsStats(close, 60)
+        val sharpe = if (!rs.sharpe.isNaN()) rs.sharpe else 0.0
+        val sortino = if (!rs.sortino.isNaN()) rs.sortino else 0.0
+        val calmar = if (!rs.calmar.isNaN()) rs.calmar else 0.0
+        val maxDrawdown = if (!rs.maxDrawdown.isNaN()) rs.maxDrawdown * 100 else 0.0
+        val var95 = if (!rs.var95.isNaN()) rs.var95 * 100 else 0.0
 
         // ===== 1. 趋势判断 =====
         var trendStatus = "CONSOLIDATION"; var maAlignment = "均线缠绕，趋势不明"; var trendStrength = 50.0
@@ -85,6 +175,9 @@ object Analyzer {
         } else if (m5 < m10 && m10 >= m20) {
             trendStatus = "WEAK_BEAR"; maAlignment = "弱势空头，MA5<MA10 但 MA10≥MA20"; trendStrength = 40.0
         }
+
+        // ADX 连续趋势强度融合：均线档与 ADX 各半，ADX 无效时保持均线档
+        if (adx14 > 0) trendStrength = (trendStrength * 0.5 + adx14 * 0.5).coerceIn(0.0, 100.0)
 
         // ===== 2. 乖离率 =====
         val bias5 = if (m5 > 0) (price - m5) / m5 * 100 else 0.0
@@ -239,6 +332,57 @@ object Analyzer {
         else if (rsiStatus == "OVERBOUGHT") risks.add("⚠️ $rsiSignal")
         else reasons.add(rsiSignal)
 
+        // ===== v2.12.30 突破/整理加分 + 高波动扣分 =====
+        var breakoutBonus = 0
+        if (nearBreakout && tightRange) {
+            breakoutBonus += 6; reasons.add("✅ 临近20日高点且窄幅整理，突破候选")
+        } else if (nearBreakout) {
+            breakoutBonus += 3; reasons.add("⚡ 临近20日高点，关注突破")
+        }
+        if (tightRange && !nearBreakout) {
+            breakoutBonus += 3; reasons.add("✅ 近4日振幅收敛，整理充分")
+        }
+        if (nr7) reasons.add("✅ NR7 窄幅日，次日留意方向选择")
+        var rangePenalty = 0
+        if (range4d > 15.0) {
+            rangePenalty += 6; risks.add("⚠️ 近4日振幅 ${fmt1(range4d)}%>15%，波动过大")
+        }
+
+        // ===== v2.12.33 OpenBB 移植：Regime 闸门 / 量价配合 / 波动 / 突破新鲜度 / 风险调整 =====
+        var openbbBonus = 0
+        var openbbPenalty = 0
+        when (regime) {
+            "strong_trend" -> { openbbBonus += 3; reasons.add("✅ 强趋势状态（ADX ${fmt1(adx14)}，Chop ${fmt1(chop14)}）") }
+            "weak_trend" -> reasons.add("⚡ 弱趋势状态（ADX ${fmt1(adx14)}）")
+            "ranging" -> { openbbPenalty += 3; reasons.add("⚡ 震荡整理（Chop ${fmt1(chop14)}>61.8），突破信号需打折") }
+            "transition" -> reasons.add("⚡ 趋势过渡状态，方向待确认")
+        }
+        if (obvSlope > 0.1 && adosc > 0) {
+            openbbBonus += 2; reasons.add("✅ 量价资金流入（OBV/ADOSC 同向向上）")
+        } else if (obvSlope < -0.1 && n >= 2 && close[latest] > close[latest - 1]) {
+            openbbPenalty += 3; risks.add("⚠️ 价涨量能背离（OBV 下行）")
+        }
+        if (annVol > 45.0) { openbbPenalty += 3; risks.add("⚠️ 年化波动 ${fmt1(annVol)}% 偏高，注意回撤") }
+        if (breakoutDir == "upside" && breakoutMag > 0) {
+            if (breakoutBars <= 3) { openbbBonus += 3; reasons.add("✅ 突破20日高点，幅度 ${fmt2(breakoutMag)} 元（${breakoutBars} 根K线内）") }
+            else reasons.add("⚡ 已突破20日高点 ${breakoutBars} 根K线，追高需谨慎")
+        } else if (breakoutDir == "downside" && breakoutMag < 0) {
+            openbbPenalty += 3; risks.add("⚠️ 跌破20日低点，幅度 ${fmt2(breakoutMag)} 元")
+        }
+        if (sharpe > 1.0) reasons.add("✅ 近60日夏普 ${fmt2(sharpe)}，风险调整后收益较好")
+        if (maxDrawdown < -25.0) { openbbPenalty += 2; risks.add("⚠️ 近60日最大回撤 ${fmt1(maxDrawdown)}%") }
+        if (var95 < -5.0) risks.add("⚠️ Var95 日收益 ${fmt1(var95)}%，尾部风险偏高")
+        if (clenowR2 > 0.3) {
+            if (clenowFactor > 0.05) reasons.add("✅ Clenow 动量 ${fmt2(clenowFactor)}（R²=${fmt2(clenowR2)}）")
+            else if (clenowFactor < -0.05) risks.add("⚠️ Clenow 动量走弱 ${fmt2(clenowFactor)}（R²=${fmt2(clenowR2)}）")
+        }
+        if (hurst > 0.55) reasons.add("✅ Hurst ${fmt2(hurst)}，趋势延续性较强")
+        else if (hurst > 0 && hurst < 0.45) reasons.add("⚡ Hurst ${fmt2(hurst)}，偏均值回归，勿追单边")
+        if (aroonUp > 70 && aroonDown < 30) reasons.add("✅ Aroon 新高动能占优（Up ${fmt1(aroonUp)}/Down ${fmt1(aroonDown)}）")
+        else if (aroonDown > 70 && aroonUp < 30) risks.add("⚠️ Aroon 下行动能占优（Down ${fmt1(aroonDown)}）")
+
+        score = (score + breakoutBonus - rangePenalty + openbbBonus - openbbPenalty).coerceIn(0, 100)
+
         // ===== 8. 买入信号（decision_scale 分档）=====
         val signalKey = when {
             score in 80..100 -> "strong_buy"
@@ -267,7 +411,16 @@ object Analyzer {
             macdStatus = macdStatus, macdSignal = macdSignal,
             rsi6 = r6, rsi12 = r12, rsi24 = r24, rsiStatus = rsiStatus, rsiSignal = rsiSignal,
             buySignal = buySignal, signalScore = score,
-            signalReasons = reasons, riskFactors = risks
+            signalReasons = reasons, riskFactors = risks,
+            atr14 = atr14, donchianHigh20 = dcHigh, donchianLow20 = dcLow,
+            range4d = range4d, nr7 = nr7, nearBreakout = nearBreakout,
+            tightRange = tightRange, stopRef = stopRef,
+            adx14 = adx14, plusDi = plusDi, minusDi = minusDi, chop14 = chop14, regime = regime,
+            aroonUp = aroonUp, aroonDown = aroonDown, obvSlope = obvSlope, adosc = adosc, vwap = vwap,
+            annVol = annVol, parkinsonVol = parkinsonVol, clenowFactor = clenowFactor, clenowR2 = clenowR2,
+            hurst = hurst, breakoutDir = breakoutDir, breakoutMag = breakoutMag, breakoutBars = breakoutBars,
+            maCrossDir = maCrossDir, maCrossDist = maCrossDist, sharpe = sharpe, sortino = sortino,
+            calmar = calmar, maxDrawdown = maxDrawdown, var95 = var95
         )
     }
 
@@ -286,6 +439,10 @@ object Analyzer {
         sb.appendLine("量能：${VOLUME_ZH[r.volumeStatus]}（${r.volumeTrend}），量比(5日) ${fmt2(r.volumeRatio5d)}")
         sb.appendLine("MACD：${MACD_ZH[r.macdStatus]}，DIF=${fmt2(r.macdDif)}，DEA=${fmt2(r.macdDea)}，柱=${fmt2(r.macdBar)}；${r.macdSignal}")
         sb.appendLine("RSI：RSI6=${fmt1(r.rsi6)}，RSI12=${fmt1(r.rsi12)}，RSI24=${fmt1(r.rsi24)}（${RSI_ZH[r.rsiStatus]}）；${r.rsiSignal}")
+        if (r.regime.isNotEmpty()) sb.appendLine("状态：${REGIME_ZH[r.regime] ?: r.regime}，ADX=${fmt1(r.adx14)}，+DI=${fmt1(r.plusDi)}，−DI=${fmt1(r.minusDi)}，Chop=${fmt1(r.chop14)}")
+        sb.appendLine("量价流：OBV斜率=${fmt2(r.obvSlope)}，ADOSC=${fmt2(r.adosc)}，VWAP=${fmt2(r.vwap)}；年化波动=${fmt1(r.annVol)}%，Parkinson=${fmt1(r.parkinsonVol)}%")
+        sb.appendLine("动量/结构：Clenow=${fmt2(r.clenowFactor)}（R²=${fmt2(r.clenowR2)}），Hurst=${fmt2(r.hurst)}，Aroon Up/Down=${fmt1(r.aroonUp)}/${fmt1(r.aroonDown)}")
+        sb.appendLine("风险调整：夏普=${fmt2(r.sharpe)}，索诺=${fmt2(r.sortino)}，卡玛=${fmt2(r.calmar)}，最大回撤=${fmt1(r.maxDrawdown)}%，Var95=${fmt1(r.var95)}%")
         sb.appendLine("综合评分：${r.signalScore}/100，信号：${SIGNAL_ZH[r.buySignal]}")
         sb.appendLine("看多理由：${r.signalReasons.joinToString("；")}")
         sb.appendLine("风险因素：${r.riskFactors.joinToString("；")}")

@@ -22,8 +22,8 @@ android {
         applicationId "com.dsa.mobile"
         minSdk 26
         targetSdk 34
-        versionCode 61
-        versionName "2.12.27"
+        versionCode 74
+        versionName "2.12.40"
     }
 
     signingConfigs {

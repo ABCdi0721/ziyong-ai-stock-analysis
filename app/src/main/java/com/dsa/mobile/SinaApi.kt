@@ -26,10 +26,13 @@ object SinaApi {
         val url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_=/CN_MarketDataService.getKLineData" +
             "?symbol=$sym&scale=240&ma=no&datalen=$count"
         val raw = Http.get(url)
-        if (raw.contains("<script>", true) || raw.contains("location.href", true)) {
+        // 首行常为 /*<script>location.href='//sina.com';</script>*/ 注释包裹的固定标记，
+        // 真正 JSONP 数据在其后；先剥离块注释，避免把注释里的脚本字样误判成反爬拦截页
+        val cleaned = raw.replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
+        if (cleaned.contains("<script>", true) || cleaned.contains("location.href", true)) {
             throw RuntimeException("新浪K线被反爬拦截")
         }
-        val body = raw.substringAfter("([").substringBeforeLast("])")
+        val body = cleaned.substringAfter("([").substringBeforeLast("])")
         val arr = JSONArray("[$body]")
         val bars = mutableListOf<KLineBar>()
         for (i in 0 until arr.length()) {

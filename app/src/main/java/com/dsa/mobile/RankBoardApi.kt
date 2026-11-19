@@ -280,7 +280,7 @@ object RankBoardApi {
      */
     private fun enrichStockSignals(items: List<RankItem>): List<RankItem> {
         if (items.isEmpty()) return items
-        val exec = Executors.newFixedThreadPool(8)
+        val exec = Executors.newFixedThreadPool(6)
         try {
             val futures = items.map { item ->
                 exec.submit<Pair<String, Pair<String, Int>?>> { item.code to analyzeOne(item.code) }
@@ -303,22 +303,18 @@ object RankBoardApi {
         }
     }
 
-    /** 拉日K做快照分析，返回（中文信号, 评分）；失败返回 null */
+    /** 拉日K做快照分析，返回（中文信号, 评分）；失败返回 null。
+     * 回退链与选股快照一致：腾讯主域 → 腾讯备用域 → 新浪（东财历史接口在部分网络不可达，已剔除）。 */
     private fun analyzeOne(code: String): Pair<String, Int>? {
         if (!Regex("^\\d{6}$").matches(code)) return null
         return try {
-            // 备用域 → 东财 → 腾讯主域 → 新浪：主域在部分网络被 WAF 拦截，优先走稳的源
             val bars = try {
-                TencentApi.fetchDailyKlineAlt(code, 120)
+                TencentApi.fetchDailyKline(code, 120)
             } catch (e1: Exception) {
                 try {
-                    EastmoneyApi.fetchDailyKline(code, 120)
+                    TencentApi.fetchDailyKlineAlt(code, 120)
                 } catch (e2: Exception) {
-                    try {
-                        TencentApi.fetchDailyKline(code, 120)
-                    } catch (e3: Exception) {
-                        SinaApi.fetchDailyKline(code, 120)
-                    }
+                    SinaApi.fetchDailyKline(code, 120)
                 }
             }
             val r = Analyzer.analyze(bars, code)

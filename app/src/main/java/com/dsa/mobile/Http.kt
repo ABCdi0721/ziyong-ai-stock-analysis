@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
 
@@ -23,17 +24,31 @@ object Http {
         .protocols(listOf(Protocol.HTTP_1_1))
         .build()
 
+    private fun classifyHttp(code: Int): ErrKind = when (code) {
+        429, 403 -> ErrKind.RATE_LIMIT
+        in 500..599 -> ErrKind.SERVER
+        else -> ErrKind.SERVER
+    }
+
     fun get(url: String, headers: Map<String, String> = emptyMap()): String {
         val b = Request.Builder().url(url)
         b.header("User-Agent", UA)
         headers.forEach { (k, v) -> b.header(k, v) }
-        client.newCall(b.build()).execute().use { resp ->
-            val body = resp.body ?: throw RuntimeException("空响应 HTTP ${resp.code}")
-            // 腾讯行情接口返回 GBK，按字节读再转码
-            val bytes = body.bytes()
-            val text = detectAndDecode(bytes, resp)
-            if (!resp.isSuccessful) throw RuntimeException("HTTP ${resp.code}: $text")
-            return text
+        try {
+            client.newCall(b.build()).execute().use { resp ->
+                val body = resp.body
+                if (!resp.isSuccessful) throw NetException(classifyHttp(resp.code), "HTTP ${resp.code}")
+                if (body == null) throw NetException(ErrKind.EMPTY, "空响应 HTTP ${resp.code}")
+                // 腾讯行情接口返回 GBK，按字节读再转码
+                val bytes = body.bytes()
+                val text = detectAndDecode(bytes, resp)
+                if (text.isBlank()) throw NetException(ErrKind.EMPTY, "响应为空 HTTP ${resp.code}")
+                return text
+            }
+        } catch (e: NetException) {
+            throw e
+        } catch (e: IOException) {
+            throw NetException(ErrKind.NETWORK, "网络异常：${e.message}", e)
         }
     }
 
@@ -44,11 +59,18 @@ object Http {
         val b = Request.Builder().url(url)
             .post(json.toRequestBody("application/json; charset=utf-8".toMediaType()))
         headers.forEach { (k, v) -> b.header(k, v) }
-        httpClient.newCall(b.build()).execute().use { resp ->
-            val body = resp.body ?: throw RuntimeException("空响应 HTTP ${resp.code}")
-            val text = body.string()
-            if (!resp.isSuccessful) throw RuntimeException("HTTP ${resp.code}: $text")
-            return text
+        try {
+            httpClient.newCall(b.build()).execute().use { resp ->
+                val body = resp.body ?: throw NetException(ErrKind.EMPTY, "空响应 HTTP ${resp.code}")
+                val text = body.string()
+                if (!resp.isSuccessful) throw NetException(classifyHttp(resp.code), "HTTP ${resp.code}")
+                if (text.isBlank()) throw NetException(ErrKind.EMPTY, "响应为空 HTTP ${resp.code}")
+                return text
+            }
+        } catch (e: NetException) {
+            throw e
+        } catch (e: IOException) {
+            throw NetException(ErrKind.NETWORK, "网络异常：${e.message}", e)
         }
     }
 

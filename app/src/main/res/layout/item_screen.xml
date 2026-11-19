@@ -58,6 +58,16 @@
                 android:layout_marginTop="2dp"
                 android:textSize="13sp"
                 android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/s_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:text="分项"
+                android:textColor="?attr/dsaPrimary"
+                android:textSize="11sp" />
         </LinearLayout>
 
         <TextView
@@ -90,5 +100,15 @@
         android:maxLines="2"
         android:textColor="?attr/dsaText2"
         android:textSize="12sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/s_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:lineSpacingExtra="2dp"
+        android:textColor="?attr/dsaText2"
+        android:textSize="11sp"
         android:visibility="gone" />
 </LinearLayout>

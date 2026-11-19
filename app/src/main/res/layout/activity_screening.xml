@@ -38,6 +38,29 @@
                 android:layout_weight="1" />
         </LinearLayout>
 
+        <!-- 数据源快捷下拉：与设置页「选股数据源」共用同一偏好键，切换即同步；透明背景项 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="数据源"
+                android:textColor="?attr/dsaText"
+                android:textSize="15sp" />
+
+            <Spinner
+                android:id="@+id/sp_screen_source"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
