@@ -10,7 +10,7 @@ import java.util.Locale
 /** Tushare 数据接口（需 Token） */
 object TushareApi {
 
-    private const val ENDPOINT = "https://api.tushare.pro"
+    const val ENDPOINT = "https://api.tushare.pro"
 
     /** 六位代码 → ts_code */
     fun tsCode(code: String): String {

@@ -125,7 +125,7 @@ object LlmApi {
                     if (choices != null && choices.length() > 0) {
                         val msg = choices.optJSONObject(0)?.optJSONObject("message")
                         val content = extractContent(msg)
-                        if (content.isNotBlank()) {
+                        if (isUsableReply(content)) {
                             parseUsage(json)?.let { recordUsage(it) }
                             return content.trim()
                         }
@@ -273,6 +273,32 @@ object LlmApi {
         // 推理类模型（如 deepseek-reasoner）正文可能在 reasoning_content
         val reasoning = msg.optString("reasoning_content", "")
         return reasoning
+    }
+
+    /** 不可用回复特征：堆栈 / 鉴权 / 限流 / 服务端错误 / 英文报错串（小写匹配） */
+    private val badMarkers = listOf(
+        "exception", "traceback", "stacktrace", "nullpointer", "runtimeexception",
+        "caused by", "at java.", "at kotlin.", "at android.", "parse error", "malformed",
+        "rate limit", "unauthorized", "forbidden", "internal server", "bad gateway",
+        "service unavailable", "gateway timeout", "invalid api key", "invalid_request_error",
+        "\"error\"", "error:", "connection reset", "broken pipe", "socketexception",
+        "timeout", "timed out", "http 4", "http 5"
+    )
+
+    /**
+     * 结果质量闸门：拦截空回复、英文思考链/大段英文作答、堆栈与错误串。
+     * 中转站/免费模型延迟或异常时，这类内容不作为分析结论落库，视同失败走轮换或本地兜底。
+     */
+    private fun isUsableReply(text: String?): Boolean {
+        val t = text?.trim().orEmpty()
+        if (t.isBlank()) return false
+        val lower = t.lowercase()
+        if (badMarkers.any { lower.contains(it) }) return false
+        val cjk = Regex("[一-鿿]").findAll(t).count()
+        val latin = Regex("[A-Za-z]").findAll(t).count()
+        // 中文极少且拉丁字母占多数：视为英文作答或推理思考链，不可用
+        if (cjk < 8 && latin >= 30) return false
+        return true
     }
 
     private fun normalize(baseUrl: String): String {

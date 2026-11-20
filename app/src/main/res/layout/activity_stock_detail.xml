@@ -491,6 +491,142 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
+        <!-- v2.12.43 持仓录入（可选；用于交易员/风控给加减仓建议，未填按无持仓视角） -->
+        <LinearLayout
+            android:id="@+id/holding_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="持仓情况（可选，用于加减仓建议）"
+                    android:textColor="?attr/dsaText2"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/holding_save"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="8dp"
+                    android:paddingVertical="4dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:text="保存"
+                    android:textColor="?attr/dsaPrimary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/holding_clear"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="12dp"
+                    android:paddingVertical="4dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:text="清空"
+                    android:textColor="?attr/dsaPrimary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="成本价(元)"
+                        android:textColor="?attr/dsaText2"
+                        android:textSize="11sp" />
+
+                    <EditText
+                        android:id="@+id/et_hold_cost"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:background="@null"
+                        android:hint="未填"
+                        android:inputType="numberDecimal|numberSigned"
+                        android:textColor="?attr/dsaText"
+                        android:textColorHint="?attr/dsaText2"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="持股(股)"
+                        android:textColor="?attr/dsaText2"
+                        android:textSize="11sp" />
+
+                    <EditText
+                        android:id="@+id/et_hold_shares"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:background="@null"
+                        android:hint="未填"
+                        android:inputType="numberDecimal"
+                        android:textColor="?attr/dsaText"
+                        android:textColorHint="?attr/dsaText2"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="总资金(元)"
+                        android:textColor="?attr/dsaText2"
+                        android:textSize="11sp" />
+
+                    <EditText
+                        android:id="@+id/et_hold_cash"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:background="@null"
+                        android:hint="未填"
+                        android:inputType="numberDecimal|numberSigned"
+                        android:textColor="?attr/dsaText"
+                        android:textColorHint="?attr/dsaText2"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- v2.12.0 快捷选择 AI 模型（与设置页共用同一份配置，改一处两边同步） -->
         <LinearLayout
             android:id="@+id/llm_model_row"

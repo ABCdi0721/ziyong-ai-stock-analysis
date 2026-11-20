@@ -54,6 +54,27 @@ class StockDetailActivity : BaseActivity() {
         // v2.12.0 快捷选择 AI 模型（与设置页共用同一份配置）
         binding.llmModelRow.setOnClickListener { showLlmPicker() }
         refreshLlmLabel()
+        // v2.12.43 持仓录入回填 + 失焦保存 + 清空
+        fillHolding()
+        binding.holdingSave.setOnClickListener {
+            persistHolding()
+            val h = Prefs.loadHolding(this, code)
+            Toast.makeText(
+                this,
+                if (h != null) "持仓已保存" else "成本价与持股未填，按无持仓视角",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        binding.holdingClear.setOnClickListener {
+            binding.etHoldCost.setText("")
+            binding.etHoldShares.setText("")
+            binding.etHoldCash.setText("")
+            Prefs.saveHolding(this, code, null)
+            Toast.makeText(this, "已清空持仓记录", Toast.LENGTH_SHORT).show()
+        }
+        listOf(binding.etHoldCost, binding.etHoldShares, binding.etHoldCash).forEach { et ->
+            et.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) persistHolding() }
+        }
         // v2.6.0：快捷添加自选
         binding.btnWatch.text = if (Prefs.inWatchlist(this, code)) "★ 已自选" else "☆ 自选"
         binding.btnWatch.setOnClickListener { toggleWatch() }
@@ -624,18 +645,25 @@ class StockDetailActivity : BaseActivity() {
                     analyzing = false
                     binding.btnAiAnalyze.isEnabled = true
                     binding.detailLoading.text = ""
-                    // 自动保存到历史报告（每次独立留存，不覆盖）
-                    Prefs.saveHistory(
-                        this, HistoryReport(
-                            code = code, name = name,
-                            date = LocalDate.now().toString(),
-                            time = Prefs.clock(),
-                            score = r.signalScore,
-                            signal = Analyzer.SIGNAL_ZH[r.buySignal] ?: r.buySignal,
-                            report = report
+                    // 自动保存到历史报告（每次独立留存，不覆盖）；评分 ≤50 仅展示不落库
+                    val kept = Prefs.keepHistory(r.signalScore)
+                    if (kept) {
+                        Prefs.saveHistory(
+                            this, HistoryReport(
+                                code = code, name = name,
+                                date = LocalDate.now().toString(),
+                                time = Prefs.clock(),
+                                score = r.signalScore,
+                                signal = Analyzer.SIGNAL_ZH[r.buySignal] ?: r.buySignal,
+                                report = report
+                            )
                         )
-                    )
-                    Toast.makeText(this, "AI 分析完成，已保存到历史报告", Toast.LENGTH_SHORT).show()
+                    }
+                    Toast.makeText(
+                        this,
+                        if (kept) "AI 分析完成，已保存到历史报告" else "评分 ≤50，未存入历史报告",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     Notifier.showDone(
                         this, code, "ai",
                         "「$name」AI 分析完成",
@@ -736,17 +764,25 @@ class StockDetailActivity : BaseActivity() {
                     binding.btnNewsAnalyze.isEnabled = true
                     binding.detailLoading.text = ""
                     val signal = NewsSentiment.label(sc.score)
-                    Prefs.saveHistory(
-                        this, HistoryReport(
-                            code = code, name = name,
-                            date = LocalDate.now().toString(),
-                            time = Prefs.clock(),
-                            score = (sc.score + 50).coerceIn(0, 100),
-                            signal = "新闻·$signal",
-                            report = report
+                    val newsScore = (sc.score + 50).coerceIn(0, 100)
+                    val kept = Prefs.keepHistory(newsScore)
+                    if (kept) {
+                        Prefs.saveHistory(
+                            this, HistoryReport(
+                                code = code, name = name,
+                                date = LocalDate.now().toString(),
+                                time = Prefs.clock(),
+                                score = newsScore,
+                                signal = "新闻·$signal",
+                                report = report
+                            )
                         )
-                    )
-                    Toast.makeText(this, "新闻分析完成，已保存到历史报告", Toast.LENGTH_SHORT).show()
+                    }
+                    Toast.makeText(
+                        this,
+                        if (kept) "新闻分析完成，已保存到历史报告" else "评分 ≤50，未存入历史报告",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     Notifier.showDone(
                         this, code, "news",
                         "「$name」新闻分析完成",
@@ -801,7 +837,34 @@ class StockDetailActivity : BaseActivity() {
         )
     }
 
+    /** 回填已录入持仓；无记录则留空（按无持仓视角） */
+    private fun fillHolding() {
+        val h = Prefs.loadHolding(this, code)
+        binding.etHoldCost.setText(if (h != null && h.valid) fmt2(h.cost) else "")
+        binding.etHoldShares.setText(
+            if (h != null && h.valid) sharesText(h.shares) else ""
+        )
+        binding.etHoldCash.setText(
+            if (h != null && h.valid && h.cash > 0) fmt2(h.cash) else ""
+        )
+    }
+
+    /** 解析输入并保存持仓；成本或股数缺失则视为无持仓并清除记录 */
+    private fun persistHolding() {
+        val cost = binding.etHoldCost.text.toString().trim().replace(",", "").toDoubleOrNull() ?: 0.0
+        val shares = binding.etHoldShares.text.toString().trim().replace(",", "").toDoubleOrNull() ?: 0.0
+        val cash = binding.etHoldCash.text.toString().trim().replace(",", "").toDoubleOrNull() ?: 0.0
+        val h = if (cost > 0 && shares > 0) Holding(cost, shares, cash) else null
+        Prefs.saveHolding(this, code, h)
+    }
+
+    private fun fmt2(v: Double) = String.format(Locale.US, "%.2f", v)
+
+    private fun sharesText(v: Double) =
+        if (v == v.toLong().toDouble()) v.toLong().toString() else fmt2(v)
+
     private fun openMultiAgent() {
+        persistHolding()
         if (!Prefs.hasLlmConfig(this)) {
             Toast.makeText(this, "请先在大模型设置中填写 API 地址、Key 和模型名", Toast.LENGTH_LONG).show()
             startActivity(Intent(this, SettingsActivity::class.java))

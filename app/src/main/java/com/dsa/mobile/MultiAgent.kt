@@ -2,7 +2,14 @@ package com.dsa.mobile
 
 import android.content.Context
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * TradingAgents 多智能体分析流水线（Kotlin 移植版）
@@ -29,33 +36,59 @@ object MultiAgent {
         val technical: String,
         val bull: String,
         val bear: String,
+        /** v2.12.43 研究经理汇总：多空辩论后裁决更强一方（对齐 TradingAgents Research Manager） */
+        val research: String,
         val trader: String,
         val risk: String,
         val portfolio: String,
         /** 由本地规则补全的环节数量（0 表示全部由模型生成） */
         val degraded: Int = 0
     ) {
-        /** 从组合经理输出提取最终信号：买入/卖出/观望 */
+        /** 从组合经理终审 → 交易员决策 → 全文兜底，逐级提取最终信号；解析不出记「未判定」 */
         val finalSignal: String
             get() {
-                val p = portfolio
-                return when {
-                    p.contains("强烈买入") -> "强烈买入"
-                    p.contains("买入") -> "买入"
-                    p.contains("强烈卖出") -> "强烈卖出"
-                    p.contains("卖出") -> "卖出"
-                    p.contains("观望") || p.contains("持有") -> "观望"
-                    else -> "观望"
-                }
+                // 1) 组合经理「最终决策」行（终审优先）
+                lineValue(portfolio, "最终决策")?.let { signalFromText(it).ifBlank { null } }?.let { return it }
+                // 2) 回退交易员「方向」行
+                lineValue(trader, "方向")?.let { signalFromText(it).ifBlank { null } }?.let { return it }
+                // 3) 全文兜底；仍解析不出方向 → 未判定（区别于有依据的观望，不静默归为 Hold）
+                return signalFromText(portfolio.ifBlank { trader }).ifBlank { "未判定" }
             }
 
-        /** 从组合经理输出提取信心评分 0-100 */
+        /** v2.12.43：是否未能解析出明确方向（哨兵，不可交易信号） */
+        val undecided: Boolean get() = finalSignal == "未判定"
+
+        /** 从「信心评分」行提取 0-100 分；避免误抓正文价格或位数 */
         val finalScore: Int
             get() {
+                lineValue(portfolio, "信心评分", "评分", "置信")?.let { v ->
+                    Regex("""(\d{1,3})""").find(v)?.groupValues?.get(1)?.toIntOrNull()
+                        ?.let { return it.coerceIn(0, 100) }
+                }
                 val m = Regex("""(?:评分|信心|置信)[：:\s]*(\d{1,3})""").find(portfolio)
                 val v = m?.groupValues?.get(1)?.toIntOrNull() ?: 50
                 return v.coerceIn(0, 100)
             }
+
+        // ===== v2.12.43 结构化决策字段（从各角色固定行抽取；抽不到为空串，不编造） =====
+        /** 仓位建议（交易员「仓位建议」优先，回退经理「仓位上限」） */
+        val position: String
+            get() = (lineValue(trader, "仓位建议") ?: lineValue(portfolio, "仓位上限")).orEmpty().trim()
+        /** 理想买入/加仓价位 */
+        val entryPrice: String
+            get() = lineValue(trader, "理想买入点", "买入价位", "加仓价位").orEmpty().trim()
+        /** 止损价位（交易员优先，回退风控建议） */
+        val stopPrice: String
+            get() = (lineValue(trader, "止损价位", "止损位") ?: lineValue(risk, "止损")).orEmpty().trim()
+        /** 止盈目标价位 */
+        val targetPrice: String
+            get() = lineValue(trader, "止盈目标", "目标价位", "止盈位").orEmpty().trim()
+        /** 风险等级：低/中/高 */
+        val riskLevel: String
+            get() = lineValue(risk, "风险等级").orEmpty().trim()
+        /** 建议持有期：短线/波段/中线 */
+        val horizon: String
+            get() = (lineValue(trader, "持有期") ?: lineValue(portfolio, "持有期")).orEmpty().trim()
 
         /** 拼接为完整报告（供报告页渲染） */
         fun toReport(): String = buildString {
@@ -87,6 +120,9 @@ object MultiAgent {
             appendLine()
             appendLine("## 空头研究员")
             appendLine(bear.ifBlank { "数据不足，本节未生成。" })
+            appendLine()
+            appendLine("## 研究经理汇总")
+            appendLine(research.ifBlank { "数据不足，本节未生成。" })
             appendLine()
             appendLine("## 交易员决策")
             appendLine(trader.ifBlank { "数据不足，本节未生成。" })
@@ -128,22 +164,53 @@ object MultiAgent {
         "【本次任务】你是空头研究员。审视上面的四位分析师报告，找出最强的看空逻辑与风险点，组织成结构化空头论点（每点给出依据），为交易员提供风险警示。" +
             "200-320字，分点列出，客观不夸张。"
 
+    private const val TASK_RESEARCH_MGR =
+        "【本次任务】你是研究经理。权衡上面的多头与空头观点，裁决哪一方论据更强，给出研究层面的倾向。输出格式（严格按此格式）：\n" +
+            "## 研究经理汇总\n倾向：偏多/偏空/均衡\n关键依据：...（80字内）\n主要风险：...（60字内）\n" +
+            "不要重复罗列多空原文，只给裁决结论。"
+
     private const val TASK_TRADER =
-        "【本次任务】你是交易员。综合上面的多空辩论与技术面要点，做出交易决策。输出格式（严格按此格式）：\n" +
-            "## 交易决策\n方向：买入/卖出/观望\n仓位建议：x成仓（0-10成）\n理想买入点：xxx元（或区间）\n止损价位：xxx元\n止盈目标：xxx元\n理由：150字内\n" +
+        "【本次任务】你是交易员。综合上面的研究经理汇总、多空辩论与技术面要点，做出交易决策。输出格式（严格按此格式）：\n" +
+            "## 交易决策\n方向：买入/卖出/加仓/减仓/持有/清仓/观望\n" +
+            "仓位建议：x成仓（有持仓则为现有仓位下加/减到几成；无持仓则为新建仓位几成）\n" +
+            "理想买入点：xxx元（或区间）\n止损价位：xxx元\n止盈目标：xxx元\n持有期：短线(数日)/波段(数周)/中线(数月)\n理由：150字内\n" +
             "要求决策果断、给出具体价位，基于上述证据，不模棱两可。"
 
     private const val TASK_RISK =
-        "【本次任务】你是风险管理专员。评估上面交易员决策的风险：市场波动风险、流动性风险、下行空间、止损是否合理，" +
+        "【本次任务】你是风险管理专员。评估上面交易员决策的风险：市场波动风险、流动性风险、下行空间、止损是否合理；" +
+            "若提供了现有持仓，需结合持仓成本与仓位占比评估集中度、浮亏承受与加减仓风险。" +
             "给出风险评估等级（低/中/高）与改进建议。输出格式（严格按此格式）：\n" +
             "## 风险评估\n风险等级：低/中/高\n主要风险：...\n止损是否合理：是/否，建议...\n仓位建议：...\n150字内。"
 
     private const val TASK_PORTFOLIO =
         "【本次任务】你是投资组合经理。综合上面的交易员决策与风控评估，做出最终决定：批准、否决或调整该交易。输出格式（严格按此格式）：\n" +
-            "## 组合经理最终决策\n最终决策：批准买入/批准卖出/观望/否决\n仓位上限：x成\n信心评分：0-100整数\n理由：150字内\n" +
+            "## 组合经理最终决策\n最终决策：批准买入/批准卖出/观望/否决\n仓位上限：x成\n持有期：短线/波段/中线\n信心评分：0-100整数\n理由：150字内\n" +
             "必须给出最终决策与信心评分，作为整个分析流程的结论。"
 
     // ===================== 文本工具 =====================
+
+    /** 决策文本 → 方向标签；强烈信号优先；加仓归买入、减仓/清仓归卖出；无法判定返回空串 */
+    private fun signalFromText(text: String): String = when {
+        text.contains("强烈买入") -> "强烈买入"
+        text.contains("强烈卖出") -> "强烈卖出"
+        text.contains("加仓") || text.contains("买入") -> "买入"
+        text.contains("减仓") || text.contains("清仓") || text.contains("卖出") -> "卖出"
+        text.contains("观望") || text.contains("持有") || text.contains("否决") -> "观望"
+        else -> ""
+    }
+
+    /** 抽取指定标签行冒号后的内容，如「最终决策：批准买入」→「批准买入」；找不到返回 null */
+    private fun lineValue(text: String, vararg labels: String): String? {
+        text.lineSequence().forEach { line ->
+            labels.forEach { label ->
+                if (line.contains(label)) {
+                    val after = line.substringAfter('：').let { if (it == line) line.substringAfter(':') else it }
+                    if (after.isNotBlank() && after != line) return after.trim()
+                }
+            }
+        }
+        return null
+    }
 
     /** 去掉模型自带的首行 ## 标题，避免与报告页自动添加的角色标题重复 */
     private fun stripHeading(text: String): String {
@@ -169,6 +236,10 @@ object MultiAgent {
     }
 
     private fun f2(v: Double) = String.format("%.2f", v)
+
+    /** 股数显示：整数股去掉小数位 */
+    private fun formatShares(v: Double): String =
+        if (v == v.toLong().toDouble()) v.toLong().toString() else f2(v)
 
     /** 从 Analyzer.buildAnalysisSummary 的文本里提取可用的关键数据，供本地兜底结论使用 */
     private data class Snap(
@@ -322,6 +393,22 @@ object MultiAgent {
         append("倾向：").append(if (s.score < 50) "看空" else "中性").append("。")
     }
 
+    /** v2.12.43 研究经理本地兜底：依据综合评分裁决多空倾向 */
+    private fun localResearchManager(s: Snap): String = buildString {
+        val bias = when {
+            s.score >= 60 -> "偏多"
+            s.score >= 45 -> "均衡"
+            else -> "偏空"
+        }
+        appendLine("倾向：$bias")
+        append("关键依据：综合评分 ${s.score}/100，信号「${s.signal}」")
+        if (s.reasons.isNotBlank()) append("，${s.reasons}")
+        appendLine("。")
+        append("主要风险：")
+        append(if (s.risks.isNotBlank()) s.risks else "量能与趋势信号偏弱，短线波动可能加大")
+        append("。")
+    }
+
     private fun localTrader(s: Snap): String = buildString {
         val dir = if (s.score >= 70) "买入" else "观望"
         val pos = when {
@@ -341,6 +428,7 @@ object MultiAgent {
             appendLine("止损价位：${f2(stop)} 元")
             appendLine("止盈目标：${f2(s.price * 1.08)} 元（第一目标，按现价 +8% 估算）；${f2(s.price * 1.15)} 元（第二目标，按现价 +15% 估算）")
         }
+        appendLine("持有期：${if (s.score >= 70) "波段(数周)" else "短线(数日)"}")
         append("理由：综合评分 ${s.score}/100（${s.signal}）")
         append(if (s.risks.isNotBlank()) "，主要风险为${s.risks}。" else "，技术面与量能信号决定方向。")
     }
@@ -367,6 +455,7 @@ object MultiAgent {
         val dec = if (s.score >= 70) "批准买入" else "观望"
         appendLine("最终决策：$dec")
         appendLine("仓位上限：${when { s.score >= 80 -> "8"; s.score >= 70 -> "6"; s.score >= 50 -> "4"; else -> "2" }}成")
+        appendLine("持有期：${if (s.score >= 70) "波段(数周)" else "短线(数日)"}")
         appendLine("信心评分：${s.score}")
         append("理由：综合评分 ${s.score}/100、信号「${s.signal}」")
         append(if (s.risks.isNotBlank()) "，主要制约为${s.risks}。" else "，无额外制约。")
@@ -400,6 +489,217 @@ object MultiAgent {
         }
     }
 
+    // ================= 财报快照：多源降级链 + 会话内缓存 =================
+
+    /** 财报快照内部结构；缺项为 NaN，格式化时显示「—」 */
+    private data class FinanceSnap(
+        val period: String,
+        val revYi: Double, val revYoy: Double,
+        val profitYi: Double, val profitYoy: Double,
+        val roe: Double, val debt: Double, val gross: Double
+    )
+
+    /** 会话内内存缓存：code → 快照。一次分析内多轮调用不重复拉网；重启后自然刷新 */
+    private val financeMem = LinkedHashMap<String, FinanceSnap>()
+
+    /**
+     * 拉取最新一期主要财务指标，降级链：东财 → 同花顺 → 新浪 → Tushare(已配 token)。
+     * 任一源取到即返回；全部失败返回空串，由调用方标注缺失，不打断流程。
+     */
+    private fun fetchFinance(ctx: Context, code: String): String {
+        financeMem[code]?.let { return formatFinance(it) }
+        val snap = fetchEmFinance(code)
+            ?: fetchThsFinance(code)
+            ?: fetchSinaFinance(code)
+            ?: fetchTsFinance(ctx, code)
+        if (snap != null) {
+            financeMem[code] = snap
+            return formatFinance(snap)
+        }
+        return ""
+    }
+
+    private fun formatFinance(s: FinanceSnap): String {
+        fun yoy(v: Double) = if (v.isNaN()) "—" else "${if (v >= 0) "+" else ""}${f2(v)}%"
+        fun pct(v: Double) = if (v.isNaN()) "—" else "${f2(v)}%"
+        return buildString {
+            append("【最新财报】")
+            if (s.period.isNotBlank()) append(s.period).append("：")
+            if (s.revYi > 0) append("营业总收入 ${f2(s.revYi)} 亿元（同比 ${yoy(s.revYoy)}）")
+            if (s.profitYi > 0) {
+                if (s.revYi > 0) append("，")
+                append("归母净利润 ${f2(s.profitYi)} 亿元（同比 ${yoy(s.profitYoy)}）")
+            }
+            if (!s.roe.isNaN()) append("，ROE(加权) ${pct(s.roe)}")
+            if (!s.debt.isNaN()) append("，资产负债率 ${pct(s.debt)}")
+            if (!s.gross.isNaN()) append("，毛利率 ${pct(s.gross)}")
+            if (isEmpty()) return ""
+        }.toString()
+    }
+
+    /** 源 1：东财 F10（字段最全、JSON 最规整） */
+    private fun fetchEmFinance(code: String): FinanceSnap? {
+        return try {
+        val url = "https://datacenter.eastmoney.com/securities/api/data/v1/get" +
+            "?reportName=RPT_F10_FINANCE_MAINFINADATA" +
+            "&columns=REPORT_DATE_NAME,TOTALOPERATEREVE,PARENTNETPROFIT,TOTALOPERATEREVETZ," +
+            "PARENTNETPROFITTZ,ROEJQ,ZCFZL,XSMLL" +
+            "&filter=(SECURITY_CODE%3D%22$code%22)&pageNumber=1&pageSize=1" +
+            "&sortColumns=REPORT_DATE&sortTypes=-1&source=HSF10&client=PC"
+        val arr = JSONObject(Http.get(url, mapOf("Referer" to "https://emweb.securities.eastmoney.com/")))
+            .optJSONObject("result")?.optJSONArray("data") ?: return null
+        val d = arr.optJSONObject(0) ?: return null
+        val rev = d.optDouble("TOTALOPERATEREVE", 0.0) / 1e8
+        val profit = d.optDouble("PARENTNETPROFIT", 0.0) / 1e8
+        if (rev <= 0.0 && profit <= 0.0) return null
+        FinanceSnap(
+            period = d.optString("REPORT_DATE_NAME", "").trim(),
+            revYi = rev, revYoy = d.optDouble("TOTALOPERATEREVETZ", Double.NaN),
+            profitYi = profit, profitYoy = d.optDouble("PARENTNETPROFITTZ", Double.NaN),
+            roe = d.optDouble("ROEJQ", Double.NaN),
+            debt = d.optDouble("ZCFZL", Double.NaN),
+            gross = d.optDouble("XSMLL", Double.NaN)
+        )
+    } catch (e: Exception) { null }
+    }
+
+    /** 源 2：同花顺 F10（JSON 嵌套 flashData；银行股无毛利率） */
+    private fun fetchThsFinance(code: String): FinanceSnap? {
+        return try {
+        val url = "http://basic.10jqka.com.cn/api/stock/finance/${code}_main.json"
+        val root = JSONObject(Http.get(url, mapOf("Referer" to "http://basic.10jqka.com.cn/")))
+        val fd = root.optString("flashData", "").ifBlank { return null }
+        val data = JSONObject(fd)
+        val title = data.optJSONArray("title") ?: return null
+        val report = data.optJSONArray("report") ?: return null
+        if (title.length() == 0 || report.length() == 0) return null
+        val period = report.optJSONArray(0)?.optString(0, "") ?: ""
+        val rowByName = HashMap<String, Int>()
+        for (i in 0 until title.length()) {
+            val name = title.optJSONArray(i)?.optString(0, "") ?: continue
+            rowByName[name] = i
+        }
+        fun cell(vararg names: String): String? {
+            for (n in names) {
+                val i = rowByName[n] ?: continue
+                val v = report.optJSONArray(i)?.optString(0, "")?.trim().orEmpty()
+                if (v.isNotBlank() && v != "False" && v != "false") return v
+            }
+            return null
+        }
+        val rev = parseAmountYi(cell("营业总收入", "营业收入"))
+        val profit = parseAmountYi(cell("净利润", "归属于母公司的净利润"))
+        if (rev.isNaN() && profit.isNaN()) return null
+        FinanceSnap(
+            period = period,
+            revYi = rev, revYoy = parsePct(cell("营业总收入同比增长率", "营业收入同比增长率")),
+            profitYi = profit, profitYoy = parsePct(cell("净利润同比增长率")),
+            roe = parsePct(cell("净资产收益率")),
+            debt = parsePct(cell("资产负债率")),
+            gross = parsePct(cell("销售毛利率", "毛利率"))
+        )
+    } catch (e: Exception) { null }
+    }
+
+    /** 源 3：新浪财经 HTML 表格（gb2312；无同比，比率取自指标页、金额取自利润表） */
+    private fun fetchSinaFinance(code: String): FinanceSnap? {
+        return try {
+        val guideUrl = "https://money.finance.sina.com.cn/corp/go.php/vFD_FinancialGuideLine/stockid/$code/displaytype/4.phtml"
+        val guide = Http.get(guideUrl, emptyMap())
+        val year = SimpleDateFormat("yyyy", Locale.US).format(Date())
+        val profitUrl = "https://money.finance.sina.com.cn/corp/go.php/vFD_ProfitStatement/stockid/$code/ctrl/$year/displaytype/4.phtml"
+        val profitHtml = try { Http.get(profitUrl, emptyMap()) } catch (e: Exception) { "" }
+
+        fun guideRow(label: String): String? {
+            val m = Regex("<a[^>]*>${Regex.escape(label)}(?:\\(%\\))?</a></td>\\s*<td[^>]*>([^<]*)</td>").find(guide)
+            return m?.groupValues?.get(1)?.trim()?.ifBlank { null }
+        }
+        fun profitRow(label: String): String? {
+            if (profitHtml.isBlank()) return null
+            val m = Regex("<a[^>]*>${Regex.escape(label)}</a></td>\\s*<td[^>]*>([^<]*)</td>").find(profitHtml)
+            return m?.groupValues?.get(1)?.trim()?.ifBlank { null }
+        }
+        val roe = parsePct(guideRow("加权净资产收益率") ?: guideRow("净资产收益率"))
+        val debt = parsePct(guideRow("资产负债率"))
+        val gross = parsePct(guideRow("销售毛利率") ?: guideRow("毛利率"))
+        // 利润表单位为万元 → 亿元
+        val profitWan = profitRow("归属于母公司的净利润")?.replace(",", "")?.toDoubleOrNull()
+        val revWan = (profitRow("营业总收入") ?: profitRow("营业收入"))?.replace(",", "")?.toDoubleOrNull()
+        val profit = if (profitWan != null) profitWan / 1e4 else Double.NaN
+        val rev = if (revWan != null) revWan / 1e4 else Double.NaN
+        if (rev.isNaN() && profit.isNaN() && roe.isNaN() && debt.isNaN()) return null
+        val period = Regex("20\\d{2}-\\d{2}-\\d{2}").find(guide)?.value ?: ""
+        FinanceSnap(period, rev, Double.NaN, profit, Double.NaN, roe, debt, gross)
+    } catch (e: Exception) { null }
+    }
+
+    /** 源 4：Tushare（需已配 token；免费档权限不足时静默跳过） */
+    private fun fetchTsFinance(ctx: Context, code: String): FinanceSnap? {
+        return try {
+        val token = Prefs.tushareToken(ctx)
+        if (token.isBlank()) return null
+        val tc = TushareApi.tsCode(code)
+        fun call(api: String, fields: String): JSONArray {
+            val body = JSONObject()
+                .put("api_name", api).put("token", token)
+                .put("params", JSONObject().put("ts_code", tc))
+                .put("fields", fields)
+            val resp = JSONObject(Http.postJson(TushareApi.ENDPOINT, body.toString()))
+            if (resp.optInt("code", -1) != 0) throw RuntimeException(resp.optString("msg", "Tushare 错误"))
+            return resp.optJSONObject("data")?.optJSONArray("items") ?: JSONArray()
+        }
+        fun latestRow(items: JSONArray): JSONArray? {
+            if (items.length() == 0) return null
+            var best: JSONArray? = null; var bestDate = ""
+            for (i in 0 until items.length()) {
+                val row = items.optJSONArray(i) ?: continue
+                val d = row.optString(0, "")
+                if (d > bestDate) { bestDate = d; best = row }
+            }
+            return best
+        }
+        val ind = latestRow(call("fina_indicator",
+            "end_date,roe_waa,roe,grossprofit_margin,debt_to_assets,or_yoy,netprofit_yoy"))
+        val inc = try { latestRow(call("income", "end_date,total_revenue,n_income")) } catch (e: Exception) { null }
+        fun rowD(row: JSONArray?, idx: Int): Double =
+            if (row != null && row.length() > idx && !row.isNull(idx)) row.optDouble(idx, Double.NaN) else Double.NaN
+        if (ind == null && inc == null) return null
+        val roe = if (!rowD(ind, 1).isNaN()) rowD(ind, 1) else rowD(ind, 2)
+        val revRaw = rowD(inc, 1); val profitRaw = rowD(inc, 2)
+        val period = ind?.optString(0, "")?.ifBlank { inc?.optString(0, "") ?: "" } ?: ""
+        FinanceSnap(
+            period = period,
+            revYi = if (revRaw.isFinite() && revRaw > 0) revRaw / 1e8 else Double.NaN,
+            revYoy = rowD(ind, 5),
+            profitYi = if (profitRaw.isFinite() && profitRaw > 0) profitRaw / 1e8 else Double.NaN,
+            profitYoy = rowD(ind, 6),
+            roe = roe, debt = rowD(ind, 3), gross = rowD(ind, 4)
+        )
+    } catch (e: Exception) { null }
+    }
+
+    /** 金额串 → 亿元；支持「亿 / 万」后缀与纯元值，无法解析返回 NaN */
+    private fun parseAmountYi(raw: String?): Double {
+        if (raw.isNullOrBlank()) return Double.NaN
+        val t = raw.trim().replace(",", "")
+        if (t == "--" || t == "False" || t == "false") return Double.NaN
+        val m = Regex("^([-\\d.]+)\\s*(亿|万)?").find(t) ?: return Double.NaN
+        val v = m.groupValues[1].toDoubleOrNull() ?: return Double.NaN
+        return when (m.groupValues[2]) {
+            "亿" -> v
+            "万" -> v / 1e4
+            else -> v / 1e8
+        }
+    }
+
+    /** 百分比串 → 数值百分数；无法解析返回 NaN */
+    private fun parsePct(raw: String?): Double {
+        if (raw.isNullOrBlank()) return Double.NaN
+        val t = raw.trim().replace(",", "").replace("%", "")
+        if (t == "--" || t == "False" || t == "false") return Double.NaN
+        return t.toDoubleOrNull() ?: Double.NaN
+    }
+
     fun run(
         ctx: Context,
         code: String,
@@ -407,6 +707,7 @@ object MultiAgent {
         summary: String,
         news: List<NewsApi.NewsItem>,
         newsStatus: String = "",
+        holding: Holding? = null,
         onStage: (String, String, String) -> Unit
     ): Result {
         val profiles = Prefs.llmProfiles(ctx)
@@ -441,6 +742,8 @@ object MultiAgent {
         val parts = summary.split("--- 技术指标 ---")
         val quoteBlock = parts.getOrElse(0) { summary }.trim()
         val techBlock = if (parts.size >= 2) parts[1].trim() else summary.trim()
+        // 最新一期财务指标（本地取数，不调用模型）；取不到时在基本面块里明确标注缺失
+        val financeBlock = fetchFinance(ctx, code)
 
         // 9 次调用完全一致的最小公共前缀（system 也一致）→ 供应商前缀缓存可连续命中
         val core = buildString {
@@ -451,14 +754,43 @@ object MultiAgent {
 
         val snap = parseSnap(summary)
 
+        // v2.12.43：现有持仓摘要（本地算好浮盈与仓位占比，模型不重复计算，省 token）
+        val holdingBlock = buildString {
+            val h = holding
+            if (h == null || !h.valid) {
+                append("【现有持仓】未录入持仓，按无持仓视角给新建仓位建议，无需考虑加仓、减仓或浮亏。")
+            } else {
+                appendLine("【现有持仓】")
+                appendLine("成本价：${f2(h.cost)} 元；持股：${formatShares(h.shares)} 股")
+                if (snap.price > 0) {
+                    val costMv = h.cost * h.shares
+                    val nowMv = snap.price * h.shares
+                    val pnl = nowMv - costMv
+                    val pnlPct = if (h.cost > 0.0) (snap.price / h.cost - 1.0) * 100 else Double.NaN
+                    append("现价：${f2(snap.price)} 元；持仓市值约 ${f2(nowMv)} 元；浮动")
+                    append(if (pnl >= 0) "盈利" else "亏损")
+                    append(" ${f2(kotlin.math.abs(pnl))} 元")
+                    if (!pnlPct.isNaN()) append("（${if (pnlPct >= 0) "+" else ""}${f2(pnlPct)}%）")
+                    appendLine()
+                }
+                if (h.cash > 0.0 && snap.price > 0.0) {
+                    val posPct = snap.price * h.shares / h.cash * 100.0
+                    appendLine("可用总资金：${f2(h.cash)} 元；该票仓位约 ${f2(posPct)}%")
+                }
+                append("请结合现有仓位给出加仓/减仓/持有/清仓建议，不要按空仓视角给新建仓位。")
+            }
+        }
+
         // 每套配置的连续失败次数：同一配置连挂 2 次后本次分析不再尝试，避免长时间空等
         val fails = IntArray(profiles.size)
         // 全局熔断：连续 2 个环节完全不可用后，剩余环节直接走本地规则，保证报告能出
         var globalFails = 0
         var degraded = 0
+        // 多空并行时保护 fails/globalFails 计数（网络调用在锁外执行，不阻塞并发）
+        val askLock = Any()
 
         fun ask(task: String, extra: String = "", temp: Double = 0.7, maxTokens: Int = 640): String {
-            if (globalFails >= 2) return ""
+            synchronized(askLock) { if (globalFails >= 2) return "" }
             val u = buildString {
                 append(core)
                 if (extra.isNotBlank()) {
@@ -472,34 +804,46 @@ object MultiAgent {
             val order = (listOf(active) + profiles.indices.filter { it != active }).distinct()
             for (idx in order) {
                 if (idx !in profiles.indices) continue
-                if (fails[idx] >= 2) continue
+                synchronized(askLock) { if (fails[idx] >= 2) continue }
                 val p = profiles[idx]
                 if (p.baseUrl.isBlank() || p.apiKey.isBlank() || p.model.isBlank()) continue
-                try {
-                    val text = LlmApi.chat(
+                val text = try {
+                    LlmApi.chat(
                         p.baseUrl, p.apiKey, p.model, SYSTEM_BASE, u, temp,
                         p.fallback.ifBlank { null }, maxTokens
                     )
-                    if (text.isNotBlank()) {
-                        globalFails = 0
-                        fails[idx] = 0
-                        if (idx != active) Log.i("MultiAgent", "配置「${p.name}」兜底成功（环节：${task.take(20)}）")
-                        return text
-                    }
                 } catch (e: Exception) {
-                    fails[idx]++
+                    synchronized(askLock) { fails[idx]++ }
                     Log.w("MultiAgent", "配置「${p.name}」调用未成功：${e.message?.take(80)}")
+                    continue
+                }
+                if (text.isNotBlank()) {
+                    synchronized(askLock) { globalFails = 0; fails[idx] = 0 }
+                    if (idx != active) Log.i("MultiAgent", "配置「${p.name}」兜底成功（环节：${task.take(20)}）")
+                    return text
                 }
             }
-            globalFails++
+            synchronized(askLock) { globalFails++ }
             return ""
         }
 
         // ---- 1. 四分析师合并为一次调用（同一份数据只发一遍，省掉 3 次重复上下文） ----
         onStage("四位分析师", "分析中", "")
+        val analystExtra = buildString {
+            appendLine("【估值与基本面】")
+            appendLine(quoteBlock)
+            if (financeBlock.isNotBlank()) appendLine(financeBlock)
+            else appendLine("【最新财报】本次未取得财务指标，基本面判断以估值倍数为准。")
+            appendLine()
+            appendLine("【技术指标】")
+            appendLine(techBlock)
+            appendLine()
+            appendLine("【近期新闻】")
+            append(newsBlock)
+        }
         val analystText = ask(
             TASK_ANALYSTS,
-            extra = "【估值与基本面】\n$quoteBlock\n\n【技术指标】\n$techBlock\n\n【近期新闻】\n$newsBlock",
+            extra = analystExtra,
             maxTokens = 1400
         )
 
@@ -532,15 +876,18 @@ object MultiAgent {
             appendLine("【技术分析师】\n${technical.take(reportLimit)}")
         }
 
-        // ---- 2. 多空研究员辩论 ----
+        // ---- 2. 多空研究员辩论（两者都只依赖四份分析师报告，无相互依赖，并行调用省一轮墙钟） ----
         onStage("多头研究员", "辩论中", "")
-        val bullRaw = ask(TASK_BULL, extra = "【四位分析师报告】\n$fourReports", maxTokens = 700)
-        val bull = bullRaw.ifBlank { localBull(snap).also { degraded++ } }
-        onStage("多头研究员", "完成", bull)
-
         onStage("空头研究员", "辩论中", "")
-        val bearRaw = ask(TASK_BEAR, extra = "【四位分析师报告】\n$fourReports", maxTokens = 700)
+        val debatePool = Executors.newFixedThreadPool(2)
+        val bullF = debatePool.submit(Callable<String> { ask(TASK_BULL, extra = "【四位分析师报告】\n$fourReports", maxTokens = 700) })
+        val bearF = debatePool.submit(Callable<String> { ask(TASK_BEAR, extra = "【四位分析师报告】\n$fourReports", maxTokens = 700) })
+        val bullRaw = try { bullF.get(60, TimeUnit.SECONDS) } catch (e: Exception) { "" }
+        val bearRaw = try { bearF.get(60, TimeUnit.SECONDS) } catch (e: Exception) { "" }
+        debatePool.shutdown()
+        val bull = bullRaw.ifBlank { localBull(snap).also { degraded++ } }
         val bear = bearRaw.ifBlank { localBear(snap).also { degraded++ } }
+        onStage("多头研究员", "完成", bull)
         onStage("空头研究员", "完成", bear)
 
         val debate = buildString {
@@ -548,19 +895,33 @@ object MultiAgent {
             appendLine("【空头研究员观点】\n${bear.take(reportLimit)}")
         }
 
-        // ---- 3. 交易员 ----
+        // ---- 3. 研究经理汇总：多空辩论后裁决更强一方，再交交易员（对齐 TradingAgents Research Manager） ----
+        onStage("研究经理", "汇总中", "")
+        val researchRaw = ask(TASK_RESEARCH_MGR, extra = "【多空辩论结论】\n$debate", temp = 0.3, maxTokens = 380)
+        val research = researchRaw.ifBlank { localResearchManager(snap).also { degraded++ } }.let { stripHeading(it) }
+        onStage("研究经理", "完成", research)
+
+        // ---- 4. 交易员（结合研究经理裁决、辩论与现有持仓给加减仓建议） ----
         onStage("交易员", "决策中", "")
-        val traderRaw = ask(TASK_TRADER, extra = "【多空辩论结论】\n$debate", temp = 0.3, maxTokens = 520)
+        val traderRaw = ask(
+            TASK_TRADER,
+            extra = "【研究经理汇总】\n$research\n\n【多空辩论结论】\n$debate\n\n$holdingBlock",
+            temp = 0.3, maxTokens = 520
+        )
         val trader = traderRaw.ifBlank { localTrader(snap).also { degraded++ } }.let { stripHeading(it) }
         onStage("交易员", "完成", trader)
 
-        // ---- 4. 风控 ----
+        // ---- 5. 风控（结合现有仓位评估集中度与浮亏承受） ----
         onStage("风险管理", "评估中", "")
-        val riskRaw = ask(TASK_RISK, extra = "【交易员决策】\n$trader", temp = 0.3, maxTokens = 420)
+        val riskRaw = ask(
+            TASK_RISK,
+            extra = "$holdingBlock\n\n【交易员决策】\n$trader",
+            temp = 0.3, maxTokens = 420
+        )
         val risk = riskRaw.ifBlank { localRisk(snap).also { degraded++ } }.let { stripHeading(it) }
         onStage("风险管理", "完成", risk)
 
-        // ---- 5. 组合经理 ----
+        // ---- 6. 组合经理 ----
         onStage("组合经理", "终审中", "")
         val portfolioRaw = ask(
             TASK_PORTFOLIO,
@@ -575,16 +936,10 @@ object MultiAgent {
         return Result(
             code, name, java.time.LocalDate.now().toString(),
             fundamentals, sectors, sentiment, newsImpact, technical,
-            bull, bear, trader, risk, portfolio, degraded
+            bull, bear, research, trader, risk, portfolio, degraded
         )
     }
 
     /** 从字符串解析信号（供校验/调试） */
-    fun parseSignal(s: String): String = when {
-        s.contains("强烈买入") -> "强烈买入"
-        s.contains("买入") -> "买入"
-        s.contains("强烈卖出") -> "强烈卖出"
-        s.contains("卖出") -> "卖出"
-        else -> "观望"
-    }
+    fun parseSignal(s: String): String = signalFromText(s).ifBlank { "观望" }
 }

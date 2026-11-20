@@ -174,6 +174,7 @@ class SettingsActivity : BaseActivity() {
                     if (suppressLlmRefresh) return
                     val profiles = Prefs.llmProfiles(this@SettingsActivity)
                     if (profiles.isEmpty()) return
+                    pendingNew = false
                     Prefs.saveLlmProfiles(this@SettingsActivity, profiles, pos)
                     fillLlmInputs(profiles[pos])
                 }
@@ -181,8 +182,8 @@ class SettingsActivity : BaseActivity() {
                 override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
             }
 
-        // ---- 按钮：新建空白配置 / 保存当前输入 / 删除当前 ----
-        binding.btnLlmAdd.setOnClickListener { onLlmAdd() }
+        // ---- 按钮：保存（覆盖当前配置）/ 新建空白配置 / 删除当前 ----
+        binding.btnLlmAdd.setOnClickListener { onLlmSave() }
         binding.btnLlmNew.setOnClickListener { onLlmNew() }
         binding.btnLlmDelete.setOnClickListener { onLlmDelete() }
         binding.btnLlmTest.setOnClickListener { onLlmTest() }
@@ -204,6 +205,9 @@ class SettingsActivity : BaseActivity() {
 
     private var suppressLlmRefresh = false
     private var lastProfileSignature = ""
+
+    /** 点「新建」清空表单后置 true：此时点「保存」新建一套；否则「保存」覆盖当前选中配置 */
+    private var pendingNew = false
 
     /** 配置集合 + 当前选中下标的指纹，用于判断是否需要在返回页面时刷新 */
     private fun profileSignature(): String =
@@ -267,27 +271,37 @@ class SettingsActivity : BaseActivity() {
     private fun llmInputTemp(): Double =
         binding.etLlmTemperature.text.toString().toDoubleOrNull()?.takeIf { it in 0.0..2.0 } ?: 0.7
 
-    /** 把当前输入框内容保存为一套新配置并切换使用 */
-    private fun onLlmAdd() {
+    /**
+     * 保存：默认覆盖更新下拉当前选中的那套配置；
+     * 若刚点过「新建」（pendingNew），则把表单内容新建为一套配置并切换。
+     */
+    private fun onLlmSave() {
         if (!llmInputsValid()) return
-        Prefs.addLlmProfile(
-            this,
-            binding.etLlmName.text.toString(),
-            binding.etLlmBaseUrl.text.toString(),
-            binding.etLlmKey.text.toString(),
-            binding.etLlmModel.text.toString(),
-            binding.etLlmFallback.text.toString(),
-            llmInputTemp()
-        )
-        refreshLlmProfileSpinner()
-        android.widget.Toast.makeText(this, "已保存为新配置并切换使用", android.widget.Toast.LENGTH_SHORT).show()
+        val name = binding.etLlmName.text.toString()
+        val base = binding.etLlmBaseUrl.text.toString()
+        val key = binding.etLlmKey.text.toString()
+        val model = binding.etLlmModel.text.toString()
+        val fallback = binding.etLlmFallback.text.toString()
+        val temp = llmInputTemp()
+        if (pendingNew) {
+            Prefs.addLlmProfile(this, name, base, key, model, fallback, temp)
+            pendingNew = false
+            refreshLlmProfileSpinner()
+            android.widget.Toast.makeText(this, "已新建配置并切换使用", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            val idx = Prefs.llmActiveIndex(this)
+            Prefs.updateLlmProfile(this, idx, name, base, key, model, fallback, temp)
+            refreshLlmProfileSpinner()
+            android.widget.Toast.makeText(this, "已覆盖保存当前配置", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
-     * 新建：清空全部输入框，得到一个空白填写表单。
-     * 原「覆盖更新」功能已移除，填写完成后点「保存」才会新增一套配置。
+     * 新建：清空全部输入框进入空白填写表单，置待新建状态；填写后点「保存」才新增一套。
+     * 直接改当前表单再点「保存」则覆盖更新当前配置，不会产生重复配置。
      */
     private fun onLlmNew() {
+        pendingNew = true
         binding.etLlmName.setText("")
         binding.etLlmBaseUrl.setText("")
         binding.etLlmKey.setText("")

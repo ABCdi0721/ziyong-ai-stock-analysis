@@ -665,6 +665,12 @@ object Prefs {
     fun inWatchlist(ctx: Context, code: String): Boolean = code in watchlist(ctx)
 
     // ---- 历史报告 ----
+    /** 历史报告入库最低评分：≤50 仅展示本次结果，不写入历史报告 */
+    const val HISTORY_MIN_SCORE = 50
+
+    /** 是否值得存入历史报告：评分高于阈值才保存 */
+    fun keepHistory(score: Int): Boolean = score > HISTORY_MIN_SCORE
+
     /** 当前时间 HH:mm:ss，用于历史报告逐条标注 */
     fun clock(): String =
         java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
@@ -683,7 +689,17 @@ object Prefs {
                 report = o.optString("report"),
                 time = o.optString("time", ""),
                 id = o.optLong("id", 0L),
-                favorite = o.optBoolean("favorite", false)
+                favorite = o.optBoolean("favorite", false),
+                direction = o.optString("direction", ""),
+                position = o.optString("position", ""),
+                entryPrice = o.optString("entry_price", ""),
+                stopPrice = o.optString("stop_price", ""),
+                targetPrice = o.optString("target_price", ""),
+                riskLevel = o.optString("risk_level", ""),
+                horizon = o.optString("horizon", ""),
+                holdCost = o.optString("hold_cost", ""),
+                holdShares = o.optString("hold_shares", ""),
+                holdCash = o.optString("hold_cash", "")
             )
         }
         // v2.9.6 迁移：给旧记录补一个稳定的 id（按列表位置生成，只补一次）
@@ -714,6 +730,16 @@ object Prefs {
                     .put("time", h.time)
                     .put("id", h.id)
                     .put("favorite", h.favorite)
+                    .put("direction", h.direction)
+                    .put("position", h.position)
+                    .put("entry_price", h.entryPrice)
+                    .put("stop_price", h.stopPrice)
+                    .put("target_price", h.targetPrice)
+                    .put("risk_level", h.riskLevel)
+                    .put("horizon", h.horizon)
+                    .put("hold_cost", h.holdCost)
+                    .put("hold_shares", h.holdShares)
+                    .put("hold_cash", h.holdCash)
             )
         }
         sp(ctx).edit().putString("history", arr.toString()).apply()
@@ -733,6 +759,37 @@ object Prefs {
         if (list.size > 300) list.removeAt(list.size - 1)
         persist(ctx, list)
         return id
+    }
+
+    // ---- v2.12.43 个股持仓录入（可选；成本/股数有效才视为有持仓，总资金可缺） ----
+
+    /** 读取该股已录入持仓；未填或无效返回 null（按无持仓视角分析） */
+    fun loadHolding(ctx: Context, code: String): Holding? {
+        val raw = sp(ctx).getString("holding_$code", "") ?: ""
+        if (raw.isBlank()) return null
+        return try {
+            val o = JSONObject(raw)
+            val h = Holding(
+                cost = o.optDouble("cost", 0.0),
+                shares = o.optDouble("shares", 0.0),
+                cash = o.optDouble("cash", 0.0)
+            )
+            if (h.valid) h else null
+        } catch (e: Exception) { null }
+    }
+
+    /** 保存持仓；传 null 或无效则清除记录 */
+    fun saveHolding(ctx: Context, code: String, h: Holding?) {
+        val key = "holding_$code"
+        if (h == null || !h.valid) {
+            sp(ctx).edit().remove(key).apply()
+            return
+        }
+        val o = JSONObject()
+            .put("cost", h.cost)
+            .put("shares", h.shares)
+            .put("cash", h.cash)
+        sp(ctx).edit().putString(key, o.toString()).apply()
     }
 
     // ---- v2.12.1 收藏 AI 分析报告 ----

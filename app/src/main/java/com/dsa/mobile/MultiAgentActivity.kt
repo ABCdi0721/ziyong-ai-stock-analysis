@@ -3,6 +3,7 @@ package com.dsa.mobile
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
+import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.dsa.mobile.databinding.ActivityMultiAgentBinding
@@ -19,10 +20,11 @@ class MultiAgentActivity : BaseActivity() {
     private var code = ""
     private var name = ""
     private var done = false
+    private var analyzing = false
 
     private val stages = listOf(
         "基本面分析师", "所属板块", "情绪分析师", "新闻分析师", "技术分析师",
-        "多头研究员", "空头研究员", "交易员", "风险管理", "组合经理"
+        "多头研究员", "空头研究员", "研究经理", "交易员", "风险管理", "组合经理"
     )
     private val stageRows = mutableMapOf<String, TextView>()
 
@@ -49,7 +51,8 @@ class MultiAgentActivity : BaseActivity() {
             stageRows[label] = row
         }
         setupMascot()
-        start()
+        binding.maRetry.setOnClickListener { retry() }
+        startAnalysis()
     }
 
     // ---- v2.12.11 吉祥物（通用挂件，交互见 MascotHelper） ----
@@ -58,7 +61,9 @@ class MultiAgentActivity : BaseActivity() {
         MascotHelper.attach(this, binding.root)
     }
 
-    private fun start() {
+    private fun startAnalysis() {
+        if (analyzing) return
+        analyzing = true
         Thread {
             try {
                 val q = try {
@@ -72,10 +77,7 @@ class MultiAgentActivity : BaseActivity() {
                     emptyList()
                 }
                 if (bars.isEmpty()) {
-                    runOnUiThread {
-                        binding.maStatus.text = "行情数据暂不可用，请稍后重新分析"
-                        Notifier.cancel(this@MultiAgentActivity, code, "multi")
-                    }
+                    showError("行情数据暂不可用，请稍后重新分析")
                     return@Thread
                 }
                 val r = Analyzer.analyze(bars, code)
@@ -97,10 +99,16 @@ class MultiAgentActivity : BaseActivity() {
                         if (outcome.ok) 0xFF34A853.toInt() else 0xFFE8710A.toInt()
                     )
                 }
-                val result = MultiAgent.run(this, code, name, summary, news, newsStatus) { label, status, detail ->
+                // v2.12.43：读取已录入持仓（无则按无持仓视角分析）
+                val holding = Prefs.loadHolding(this, code)
+                val result = MultiAgent.run(
+                    this, code, name, summary, news, newsStatus, holding
+                ) { label, status, detail ->
                     runOnUiThread { updateStage(label, status, detail) }
                 }
                 runOnUiThread {
+                    binding.maRetry.visibility = View.GONE
+                    analyzing = false
                     // v2.9.5：显示本次真实 token 消耗与缓存命中率，便于直观看到省流效果
                     val u = LlmApi.stats()
                     val calls = LlmApi.callCount()
@@ -111,24 +119,46 @@ class MultiAgentActivity : BaseActivity() {
                     val degradeNote = if (result.degraded > 0) {
                         "；${result.degraded} 个环节由本地规则依据真实数据补全"
                     } else ""
+                    // v2.12.44：评分 ≤50 仅展示本次结果，不写入历史报告
+                    val kept = Prefs.keepHistory(result.finalScore)
+                    val saveNote = if (kept) "已保存历史报告" else "评分 ≤50，未存入历史报告"
                     binding.maStatus.text =
-                        "全部阶段完成，已保存历史报告\n" +
+                        "全部阶段完成，$saveNote\n" +
                             "Token：输入 ${u.prompt}（缓存命中 ${u.cached} · $hit%）/ 输出 ${u.completion}，共 ${u.total}，${calls} 次调用$degradeNote"
                     done = true
-                    Prefs.saveHistory(
-                        this, HistoryReport(
-                            code = code, name = name,
-                            date = LocalDate.now().toString(),
-                            time = Prefs.clock(),
-                            score = result.finalScore,
-                            signal = result.finalSignal,
-                            report = reportText
+                    val holdCost = if (holding != null && holding.valid) String.format("%.2f", holding.cost) else ""
+                    val holdShares = if (holding != null && holding.valid) {
+                        if (holding.shares == holding.shares.toLong().toDouble())
+                            holding.shares.toLong().toString() else String.format("%.2f", holding.shares)
+                    } else ""
+                    val holdCash = if (holding != null && holding.valid && holding.cash > 0)
+                        String.format("%.2f", holding.cash) else ""
+                    if (kept) {
+                        Prefs.saveHistory(
+                            this, HistoryReport(
+                                code = code, name = name,
+                                date = LocalDate.now().toString(),
+                                time = Prefs.clock(),
+                                score = result.finalScore,
+                                signal = result.finalSignal,
+                                report = reportText,
+                                direction = result.finalSignal,
+                                position = result.position,
+                                entryPrice = result.entryPrice,
+                                stopPrice = result.stopPrice,
+                                targetPrice = result.targetPrice,
+                                riskLevel = result.riskLevel,
+                                horizon = result.horizon,
+                                holdCost = holdCost,
+                                holdShares = holdShares,
+                                holdCash = holdCash
+                            )
                         )
-                    )
+                    }
                     Notifier.showDone(
                         this, code, "multi",
                         "「$name」多智能体分析完成",
-                        "综合评分 ${result.finalScore} · ${result.finalSignal}，点击查看报告",
+                        "综合评分 ${result.finalScore} · ${result.finalSignal}（$saveNote），点击查看报告",
                         Intent(this, ReportActivity::class.java)
                             .putExtra("code", code)
                             .putExtra("name", name)
@@ -151,12 +181,31 @@ class MultiAgentActivity : BaseActivity() {
                     finish()
                 }
             } catch (e: Exception) {
-                runOnUiThread {
-                    binding.maStatus.text = "行情或网络暂不可用，请稍后重新分析"
-                    Notifier.cancel(this@MultiAgentActivity, code, "multi")
-                }
+                showError("行情或网络暂不可用，请稍后重新分析")
             }
         }.start()
+    }
+
+    /** 失败态：提示文案 + 显示重试按钮，取消运行中通知 */
+    private fun showError(msg: String) {
+        analyzing = false
+        runOnUiThread {
+            binding.maStatus.text = msg
+            binding.maRetry.visibility = View.VISIBLE
+            Notifier.cancel(this@MultiAgentActivity, code, "multi")
+        }
+    }
+
+    /** 点击重试：重置阶段行与状态后重新跑链路 */
+    private fun retry() {
+        binding.maRetry.visibility = View.GONE
+        binding.maStatus.text = "正在准备数据…"
+        stageRows.forEach { (label, row) ->
+            row.text = "$label　等待中"
+            row.setTextColor(0xFF9E9E9E.toInt())
+            row.typeface = Typeface.DEFAULT
+        }
+        startAnalysis()
     }
 
     private fun updateStage(label: String, status: String, detail: String) {

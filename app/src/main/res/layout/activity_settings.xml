@@ -602,7 +602,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="可添加多套配置，下拉即切换当前使用哪一套；「新建」清空表单填写新配置，「保存」写入并切换，删除至少保留一套。"
+            android:text="可添加多套配置，下拉即切换当前使用哪一套；「保存」覆盖更新当前配置，「新建」清空表单、填写后再保存即为新配置，删除至少保留一套。"
             android:textColor="?attr/dsaText2"
             android:textSize="12sp" />
 

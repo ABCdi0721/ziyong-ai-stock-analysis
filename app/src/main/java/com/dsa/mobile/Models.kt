@@ -174,6 +174,16 @@ data class AnalysisResult(
     val var95: Double = 0.0
 )
 
+/** v2.12.43 用户录入的现有持仓（可选；成本/股数 >0 才视为有持仓） */
+data class Holding(
+    val cost: Double,    // 成本价（元）
+    val shares: Double,  // 持股数量（股）
+    val cash: Double     // 可用总资金（元，0 表示未填）
+) {
+    /** 成本与股数都有效才视为有持仓；总资金仅用于仓位占比，可缺 */
+    val valid: Boolean get() = cost > 0 && shares > 0
+}
+
 /** 历史报告 */
 data class HistoryReport(
     val code: String,
@@ -187,7 +197,26 @@ data class HistoryReport(
     /** v2.9.6 唯一标识，删除/去重都按它，避免同股同日互相覆盖 */
     val id: Long = 0L,
     /** v2.12.1 是否已收藏（收藏页据此筛选，不额外占用存储） */
-    val favorite: Boolean = false
+    val favorite: Boolean = false,
+    // ===== v2.12.43 结构化决策字段（对齐 TradingAgents schema；旧记录为空，不影响展示） =====
+    /** 方向：买入/卖出/观望/未判定/加仓/减仓/持有/清仓 */
+    val direction: String = "",
+    /** 仓位建议（成仓文本，原样落库） */
+    val position: String = "",
+    /** 理想买入/加仓价位 */
+    val entryPrice: String = "",
+    /** 止损价位 */
+    val stopPrice: String = "",
+    /** 止盈目标价位 */
+    val targetPrice: String = "",
+    /** 风险等级：低/中/高 */
+    val riskLevel: String = "",
+    /** 建议持有期：短线/波段/中线 */
+    val horizon: String = "",
+    /** 本次建议所基于的持仓快照（无持仓时为空） */
+    val holdCost: String = "",
+    val holdShares: String = "",
+    val holdCash: String = ""
 )
 
 /** 选股策略 */
