@@ -36,6 +36,17 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_custom_strategy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:minHeight="36dp"
+                android:text="自定义"
+                android:textSize="13sp"
+                app:backgroundTint="?attr/dsaPrimaryDark"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
         </LinearLayout>
 
         <!-- 数据源快捷下拉：与设置页「选股数据源」共用同一偏好键，切换即同步；透明背景项 -->

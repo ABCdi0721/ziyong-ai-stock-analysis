@@ -46,7 +46,41 @@ class MineFragment : Fragment() {
         b.entryAbout.setOnClickListener {
             startActivity(Intent(requireContext(), AboutActivity::class.java))
         }
+        // v2.12.46：清除无用缓存（快照 / 日志 / 系统临时缓存）
+        b.entryClearCache.setOnClickListener { showClearCacheDialog() }
         return b.root
+    }
+
+    /** v2.12.46：确认后清理无用缓存与残留的低分/报错旧记录，并提示释放容量 */
+    private fun showClearCacheDialog() {
+        val ctx = requireContext()
+        val size = CacheCleaner.cacheSize(ctx)
+        val prunable = Prefs.prunableReports(ctx)
+        val msg = buildString {
+            append("将清理选股快照缓存、运行日志与系统临时缓存（当前 ${CacheCleaner.formatSize(size)}）。")
+            if (prunable.isNotEmpty()) {
+                append("\n\n同时清理历史中 ${prunable.size} 条评分 ≤50 或含报错的旧记录（已收藏的会保留）。")
+            }
+            append("\n\n其余历史报告、自选股、收藏、API 配置与自定义背景均不会删除。")
+        }
+        AlertDialog.Builder(ctx)
+            .setTitle("清除缓存")
+            .setMessage(msg)
+            .setPositiveButton("清除") { _, _ ->
+                Thread {
+                    val freed = CacheCleaner.clear(ctx)
+                    val removed = Prefs.pruneWeakReports(ctx)
+                    activity?.runOnUiThread {
+                        val tip = buildString {
+                            append("已清理 ${CacheCleaner.formatSize(freed)} 缓存")
+                            if (removed > 0) append("，清理 $removed 条低分/报错报告")
+                        }
+                        Toast.makeText(ctx, tip, Toast.LENGTH_LONG).show()
+                    }
+                }.start()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     /** v2.12.1：超级岛能力诊断 + 手动发一条测试完成通知 */

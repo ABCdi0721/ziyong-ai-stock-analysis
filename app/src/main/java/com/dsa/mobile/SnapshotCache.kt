@@ -72,6 +72,9 @@ object SnapshotCache {
         }
     }
 
+    /** 清空进程内日K LRU 缓存（不涉及磁盘文件） */
+    fun clearMemory() = synchronized(klineMem) { klineMem.clear() }
+
     private fun stockToJson(st: ScreenStock): JSONObject = JSONObject().apply {
         put("code", st.code)
         put("name", st.name)

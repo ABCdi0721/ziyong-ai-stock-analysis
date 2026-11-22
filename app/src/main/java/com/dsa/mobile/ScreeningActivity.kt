@@ -6,8 +6,11 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -31,6 +34,18 @@ class ScreeningActivity : BaseActivity() {
     private var strategyNames: List<String> = Screening.STRATEGIES.map { it.name }
     // 展示名：去掉 #序号前缀；下拉适配器用它，选中回调与持久化仍按原始 name
     private var strategyDisplayNames: List<String> = strategies.map { Screening.displayName(it.name) }
+    // v2.12.48：已保存的多套自定义策略
+    private var customStrategyList: List<ScreenStrategy> = emptyList()
+
+    /** 下拉末尾固定的「新建自定义策略」入口项（非真实策略，选中后打开空白编辑弹窗） */
+    private val NEW_CUSTOM_NAME = "＋ 新建自定义策略"
+
+    /** 构造下拉策略列表：内置策略 + 已保存自定义策略 + 末尾新建入口 */
+    private fun buildStrategyList(): List<ScreenStrategy> {
+        val builtin = Screening.ordered(Prefs.screenStrategyOrder(this))
+            .filter { it.name != Screening.CUSTOM_NAME }
+        return builtin + customStrategyList + ScreenStrategy(NEW_CUSTOM_NAME, 0.35)
+    }
 
     // v2.5.0：结果筛选状态（板块 / 信号）
     private var resultItems: List<Triple<ScreenStock, Double, Map<String, Double>>> = emptyList()
@@ -54,7 +69,9 @@ class ScreeningActivity : BaseActivity() {
         supportActionBar?.title = "选股"
 
         // v2.12.10：先按用户保存的顺序还原策略列表，再填充下拉
-        strategies = Screening.ordered(Prefs.screenStrategyOrder(this))
+        // v2.12.48：内置策略 + 已保存的多套自定义策略 + 末尾「新建自定义策略」入口
+        customStrategyList = Prefs.customStrategies(this)
+        strategies = buildStrategyList()
         strategyNames = strategies.map { it.name }
         strategyDisplayNames = strategies.map { Screening.displayName(it.name) }
         binding.strategySpinner.adapter =
@@ -104,6 +121,8 @@ class ScreeningActivity : BaseActivity() {
         }
         binding.strategyCard.setOnLongClickListener(orderLongClick)
         binding.strategySpinner.setOnLongClickListener(orderLongClick)
+        // v2.12.49：策略行右侧「自定义」按钮，直接打开自定义策略管理（新建 / 选择已保存 / 删除）
+        binding.btnCustomStrategy.setOnClickListener { showCustomStrategyManager() }
         // 恢复上次策略：排序后下标会变，优先按名称匹配，名称找不到再退回下标
         val savedName = Prefs.screenStrategyName(this)
         val savedIdx = strategyNames.indexOf(savedName).takeIf { it >= 0 }
@@ -118,14 +137,15 @@ class ScreeningActivity : BaseActivity() {
             Prefs.saveScreenStrategyIdx(this, idx)
             val strategy = strategies.getOrNull(idx) ?: return@setOnClickListener
             Prefs.saveScreenStrategyName(this, strategy.name)
-            if (strategy.name == Screening.CUSTOM_NAME) {
-                // 自定义策略...：先编辑参数再运行
-                editCustomStrategy { s ->
-                    runScreening(s)
-                }
-                return@setOnClickListener
+            when {
+                strategy.name == NEW_CUSTOM_NAME ->
+                    editCustomStrategy(null) { s -> runScreening(s) }
+                customStrategyList.any { it.name == strategy.name } ->
+                    // 自定义策略：先编辑参数再运行
+                    editCustomStrategy(strategy) { s -> runScreening(s) }
+                else -> runScreening(strategy)
             }
-            runScreening(strategy)
+            return@setOnClickListener
         }
 
         binding.btnHistory.setOnClickListener {
@@ -153,16 +173,18 @@ class ScreeningActivity : BaseActivity() {
         val subColor = com.google.android.material.color.MaterialColors.getColor(
             this, R.attr.dsaText2, android.graphics.Color.GRAY
         )
+        val ctx = this
 
-        val work = strategies.filter { it.name != Screening.CUSTOM_NAME }
-            .map { it.name }.toMutableList()
+        val work = strategies.filter {
+            it.name != Screening.CUSTOM_NAME && it.name != NEW_CUSTOM_NAME
+        }.map { it.name }.toMutableList()
 
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
         box.setPadding(dp(16), dp(12), dp(16), dp(6))
 
         val hint = TextView(this)
-        hint.text = "长按行或拖动手柄调整顺序，保存后下拉列表按新顺序显示；「自定义策略...」固定在最后一项。"
+        hint.text = "长按行或拖动手柄调整顺序；「新建自定义策略」入口固定在最后一项，不参与排序。"
         hint.textSize = 12f
         hint.setTextColor(subColor)
         hint.setPadding(0, 0, 0, dp(10))
@@ -192,20 +214,55 @@ class ScreeningActivity : BaseActivity() {
                     setPadding(dp(12), 0, 0, 0)
                     contentDescription = "拖拽手柄"
                 }
+                val trash = ImageView(row.context).apply {
+                    setImageResource(R.drawable.ic_trash)
+                    imageTintList = android.content.res.ColorStateList.valueOf(subColor)
+                    val sz = dp(24)
+                    layoutParams = LinearLayout.LayoutParams(sz, sz)
+                    setPadding(dp(12), 0, 0, 0)
+                    contentDescription = "删除策略"
+                }
                 row.addView(seq)
                 row.addView(label, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 row.addView(grip)
-                row.tag = arrayOf(seq, label, grip)
+                row.addView(trash)
+                row.tag = arrayOf<View>(seq, label, grip, trash)
                 return object : RecyclerView.ViewHolder(row) {}
             }
 
             override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-                val arr = holder.itemView.tag as Array<TextView>
-                arr[0].text = "${position + 1}"
-                arr[1].text = Screening.displayName(work[position])
-                arr[2].setOnLongClickListener {
+                val arr = holder.itemView.tag as Array<View>
+                val seqV = arr[0] as TextView
+                val labelV = arr[1] as TextView
+                val gripV = arr[2] as TextView
+                val trashV = arr[3] as ImageView
+                val name = work[position]
+                seqV.text = "${position + 1}"
+                labelV.text = Screening.displayName(name)
+                gripV.setOnLongClickListener {
                     touchHelper?.startDrag(holder)
                     true
+                }
+                val isCustom = customStrategyList.any { it.name == name }
+                trashV.visibility = if (isCustom) View.VISIBLE else View.INVISIBLE
+                trashV.setOnClickListener {
+                    if (!isCustom) return@setOnClickListener
+                    AlertDialog.Builder(ctx)
+                        .setTitle("删除策略")
+                        .setMessage("确定删除策略「${Screening.displayName(name)}」？")
+                        .setPositiveButton("删除") { _, _ ->
+                            val pos = holder.bindingAdapterPosition
+                            if (pos < 0 || pos >= work.size) return@setPositiveButton
+                            val delName = work[pos]
+                            Prefs.deleteCustomStrategy(ctx, delName)
+                            customStrategyList = Prefs.customStrategies(ctx)
+                            work.removeAt(pos)
+                            notifyItemRemoved(pos)
+                            notifyItemRangeChanged(0, work.size)
+                            Toast.makeText(ctx, "策略已删除", Toast.LENGTH_SHORT).show()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
                 }
             }
 
@@ -272,7 +329,8 @@ class ScreeningActivity : BaseActivity() {
     private fun applyStrategyOrder() {
         val keep = strategyNames.getOrNull(binding.strategySpinner.selectedItemPosition)
             ?: Prefs.screenStrategyName(this)
-        strategies = Screening.ordered(Prefs.screenStrategyOrder(this))
+        customStrategyList = Prefs.customStrategies(this)
+        strategies = buildStrategyList()
         strategyNames = strategies.map { it.name }
         strategyDisplayNames = strategies.map { Screening.displayName(it.name) }
         binding.strategySpinner.adapter =
@@ -319,80 +377,269 @@ class ScreeningActivity : BaseActivity() {
         }
     }
 
-    /** 自定义策略参数编辑对话框（结果存 Prefs，回调返回最新策略） */
-    private fun editCustomStrategy(onSaved: (ScreenStrategy) -> Unit) {
-        val ctx = this
-        val saved = Prefs.customStrategy(ctx)
-        val fields = linkedMapOf(
-            "price_min" to "价格下限（元）",
-            "price_max" to "价格上限（元）",
-            "mv_min" to "总市值下限（亿）",
-            "mv_max" to "总市值上限（亿）",
-            "pe_max" to "PE(TTM) 上限",
-            "pb_max" to "PB 上限",
-            "vr_min" to "量比下限",
-            "vr_max" to "量比上限",
-            "turnover_min" to "换手率下限（%）",
-            "turnover_max" to "换手率上限（%）",
-            "change_min" to "涨跌幅下限（%）",
-            "change_max" to "涨跌幅上限（%）",
-            "amount_min" to "成交额下限（亿元）"
+    /** 三档预设参数（一键填充到表单；留空表示不限制） */
+    private val strategyPresets = mapOf(
+        "严格" to mapOf(
+            "price_min" to 3.0, "price_max" to 100.0, "mv_min" to 30.0, "mv_max" to 150.0,
+            "pe_min" to 0.0, "pe_max" to 30.0, "pb_max" to 3.0, "vr_min" to 1.5, "vr_max" to 5.0,
+            "turnover_min" to 3.0, "turnover_max" to 10.0, "change_min" to 0.0, "change_max" to 5.0,
+            "amount_min" to 1.0
+        ),
+        "标准" to mapOf(
+            "price_min" to 3.0, "price_max" to 100.0, "mv_min" to 50.0, "mv_max" to 300.0,
+            "pe_min" to 0.0, "pe_max" to 40.0, "pb_max" to 4.0, "vr_min" to 1.0, "vr_max" to 5.0,
+            "turnover_min" to 4.0, "turnover_max" to 12.0, "change_min" to 0.0, "change_max" to 7.0,
+            "amount_min" to 0.5
+        ),
+        "宽松" to mapOf(
+            "price_min" to 2.0, "price_max" to 200.0, "mv_min" to 30.0, "mv_max" to 500.0,
+            "pe_min" to 0.0, "pe_max" to 80.0, "pb_max" to 6.0, "vr_min" to 0.8, "vr_max" to 8.0,
+            "turnover_min" to 2.0, "turnover_max" to 15.0, "change_min" to -2.0, "change_max" to 9.0,
+            "amount_min" to 0.2
         )
+    )
+
+    /** 重建下拉策略列表，尽量保持选中指定策略名 */
+    private fun rebuildStrategySpinner(keepName: String? = null) {
+        customStrategyList = Prefs.customStrategies(this)
+        strategies = buildStrategyList()
+        strategyNames = strategies.map { it.name }
+        strategyDisplayNames = strategies.map { Screening.displayName(it.name) }
+        binding.strategySpinner.adapter =
+            ArrayAdapter(this, R.layout.spinner_item, strategyDisplayNames)
+        val pos = keepName?.let { strategyNames.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+        binding.strategySpinner.setSelection(pos)
+    }
+
+    /** 自定义策略管理：列出已保存策略供编辑/删除，或新建一套；无已保存时直接打开新建弹窗 */
+    private fun showCustomStrategyManager() {
+        customStrategyList = Prefs.customStrategies(this)
+        if (customStrategyList.isEmpty()) {
+            editCustomStrategy(null) { s -> rebuildStrategySpinner(s.name) }
+            return
+        }
+        val labels = customStrategyList.map { it.name } + NEW_CUSTOM_NAME
+        val mgrDialog = AlertDialog.Builder(this)
+            .setTitle("自定义策略（${customStrategyList.size} 套）· 长按可删除")
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == labels.size - 1) {
+                    editCustomStrategy(null) { s -> rebuildStrategySpinner(s.name) }
+                } else {
+                    editCustomStrategy(customStrategyList[which]) { s -> rebuildStrategySpinner(s.name) }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        // 长按已保存策略项 → 确认删除（新建入口项不可删）
+        mgrDialog.listView?.setOnItemLongClickListener { _, _, which, _ ->
+            if (which == labels.size - 1) return@setOnItemLongClickListener false
+            val del = customStrategyList[which]
+            AlertDialog.Builder(this)
+                .setTitle("删除策略")
+                .setMessage("确定删除策略「${del.name}」？")
+                .setPositiveButton("删除") { _, _ ->
+                    Prefs.deleteCustomStrategy(this, del.name)
+                    rebuildStrategySpinner()
+                    Toast.makeText(this, "策略「${del.name}」已删除", Toast.LENGTH_SHORT).show()
+                    mgrDialog.dismiss()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            true
+        }
+        mgrDialog.show()
+    }
+
+    /** 自定义策略编辑对话框：命名保存多套、覆盖、删除、三档预设填充 */
+    private fun editCustomStrategy(current: ScreenStrategy?, onSaved: (ScreenStrategy) -> Unit) {
+        val ctx = this
+        val saved = current ?: customStrategyList.firstOrNull { it.name == current?.name }
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        // 成对字段：key 前缀、下限标签、上限标签
+        val pairs = listOf(
+            Triple("price", "价格下限(元)", "价格上限(元)"),
+            Triple("mv", "市值下限(亿)", "市值上限(亿)"),
+            Triple("pe", "PE 下限", "PE 上限"),
+            Triple("vr", "量比下限", "量比上限"),
+            Triple("turnover", "换手下限(%)", "换手上限(%)"),
+            Triple("change", "涨跌下限(%)", "涨跌上限(%)")
+        )
+        val singles = listOf("pb_max" to "PB 上限", "amount_min" to "成交额下限(亿元)")
+
+        fun valueOf(s: ScreenStrategy?, key: String): Double? = when (key) {
+            "price_min" -> s?.priceMin; "price_max" -> s?.priceMax
+            "mv_min" -> s?.mvMin; "mv_max" -> s?.mvMax
+            "pe_min" -> s?.peMin; "pe_max" -> s?.peMax; "pb_max" -> s?.pbMax
+            "vr_min" -> s?.vrMin; "vr_max" -> s?.vrMax
+            "turnover_min" -> s?.turnoverMin; "turnover_max" -> s?.turnoverMax
+            "change_min" -> s?.changeMin; "change_max" -> s?.changeMax
+            "amount_min" -> s?.amountMin
+            else -> null
+        }
+
         val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 8, 48, 0)
+            setPadding(dp(16), dp(8), dp(16), 0)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        // 内容超长时可滚动，避免底部字段与按钮被截断
+        val scroll = ScrollView(ctx).apply {
+            addView(container)
         }
         val views = HashMap<String, EditText>()
-        fields.forEach { (key, label) ->
-            val et = EditText(ctx).apply {
-                hint = label
-                inputType = android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or
-                    android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
-                setText(
-                    saved?.let { s ->
-                        when (key) {
-                            "price_min" -> s.priceMin; "price_max" -> s.priceMax
-                            "mv_min" -> s.mvMin; "mv_max" -> s.mvMax
-                            "pe_max" -> s.peMax; "pe_min" -> s.peMin; "pb_max" -> s.pbMax
-                            "vr_min" -> s.vrMin; "vr_max" -> s.vrMax
-                            "turnover_min" -> s.turnoverMin; "turnover_max" -> s.turnoverMax
-                            "change_min" -> s.changeMin; "change_max" -> s.changeMax
-                            "amount_min" -> s.amountMin
-                            else -> null
-                        }?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() }
-                            ?: ""
-                    } ?: ""
-                )
-            }
-            views[key] = et
-            container.addView(et, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 24 })
+
+        fun numberEt(initial: Double?): EditText = EditText(ctx).apply {
+            inputType = android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or
+                android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
+            setText(initial?.let {
+                if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+            } ?: "")
         }
-        AlertDialog.Builder(ctx)
-            .setTitle("自定义策略参数")
-            .setMessage("留空表示不限制。成交额下限单位为亿元。")
-            .setView(container)
+
+        // 策略名
+        val nameEt = EditText(ctx).apply {
+            hint = "策略名称（如：保守白马 / 强势短线）"
+            setText(saved?.name?.takeIf { it != Screening.CUSTOM_NAME && it != NEW_CUSTOM_NAME } ?: "")
+        }
+        container.addView(nameEt, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(12) })
+
+        // 三档预设按钮
+        val presetRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        strategyPresets.keys.forEach { label ->
+            val btn = Button(ctx).apply {
+                text = label
+                textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener {
+                    strategyPresets[label]?.forEach { (k, v) ->
+                        views[k]?.setText(v.let {
+                            if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                        })
+                    }
+                }
+            }
+            presetRow.addView(btn, LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            ).apply { marginEnd = dp(8) })
+        }
+        container.addView(presetRow, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(12) })
+
+        // 成对下限/上限并排
+        pairs.forEach { (prefix, minLabel, maxLabel) ->
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+            listOf("${prefix}_min" to minLabel, "${prefix}_max" to maxLabel).forEach { (key, label) ->
+                val col = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val lab = TextView(ctx).apply { text = label; textSize = 11f }
+                val et = numberEt(valueOf(saved, key))
+                views[key] = et
+                col.addView(lab)
+                col.addView(et)
+                row.addView(col, LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                ).apply { marginEnd = dp(8) })
+            }
+            container.addView(row, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) })
+        }
+
+        // 单列字段
+        singles.forEach { (key, label) ->
+            val lab = TextView(ctx).apply { text = label; textSize = 11f }
+            val et = numberEt(valueOf(saved, key))
+            views[key] = et
+            container.addView(lab)
+            container.addView(et, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) })
+        }
+
+        fun readStrategy(): ScreenStrategy {
+            fun d(k: String): Double? = views[k]?.text?.toString()?.trim()?.toDoubleOrNull()
+            var name = nameEt.text.toString().trim()
+            if (name.isBlank()) name = "自定义策略 ${customStrategyList.size + 1}"
+            return ScreenStrategy(
+                name = name,
+                techWeight = 0.35,
+                priceMin = d("price_min"), priceMax = d("price_max"),
+                mvMin = d("mv_min"), mvMax = d("mv_max"),
+                peMax = d("pe_max"), peMin = d("pe_min"), pbMax = d("pb_max"),
+                vrMin = d("vr_min"), vrMax = d("vr_max"),
+                turnoverMin = d("turnover_min"), turnoverMax = d("turnover_max"),
+                changeMin = d("change_min"), changeMax = d("change_max"),
+                amountMin = d("amount_min")?.let { it * 1e8 }
+            )
+        }
+
+        val dialog = AlertDialog.Builder(ctx)
+            .setTitle("自定义策略")
+            .setMessage("留空表示不限制；三档按钮可一键填充参考参数。")
+            .setView(scroll)
             .setNegativeButton("取消", null)
             .setPositiveButton("保存并运行") { _, _ ->
-                fun d(k: String): Double? = views[k]?.text?.toString()?.trim()?.toDoubleOrNull()
-                val strategy = ScreenStrategy(
-                    name = "自定义策略...",
-                    techWeight = 0.35,
-                    priceMin = d("price_min"), priceMax = d("price_max"),
-                    mvMin = d("mv_min"), mvMax = d("mv_max"),
-                    peMax = d("pe_max"), peMin = d("pe_min"), pbMax = d("pb_max"),
-                    vrMin = d("vr_min"), vrMax = d("vr_max"),
-                    turnoverMin = d("turnover_min"), turnoverMax = d("turnover_max"),
-                    changeMin = d("change_min"), changeMax = d("change_max"),
-                    amountMin = d("amount_min")?.let { it * 1e8 }
-                )
-                Prefs.saveCustomStrategy(ctx, strategy)
-                Toast.makeText(ctx, "自定义策略已保存", Toast.LENGTH_SHORT).show()
+                val strategy = readStrategy()
+                Prefs.upsertCustomStrategy(ctx, strategy)
+                rebuildStrategySpinner(strategy.name)
+                Toast.makeText(ctx, "策略「${strategy.name}」已保存", Toast.LENGTH_SHORT).show()
                 onSaved(strategy)
             }
-            .show()
+            .create()
+
+        // 操作按钮行：保存（只保存不运行）/ 清空条件
+        val actionRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(16), 0, dp(16), dp(12))
+        }
+        val saveBtn = Button(ctx).apply {
+            text = "保存"
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                val strategy = readStrategy()
+                Prefs.upsertCustomStrategy(ctx, strategy)
+                rebuildStrategySpinner(strategy.name)
+                Toast.makeText(ctx, "策略「${strategy.name}」已保存", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        val clearBtn = Button(ctx).apply {
+            text = "清空"
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                views.values.forEach { it.setText("") }
+            }
+        }
+        actionRow.addView(saveBtn, LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+        ).apply { marginEnd = dp(8) })
+        actionRow.addView(clearBtn, LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+        ))
+        container.addView(actionRow)
+
+        dialog.show()
+        // 弹窗高度上限约 80% 屏高，超出部分在 ScrollView 内滚动，避免底部被截断
+        dialog.window?.let { w ->
+            val lp = w.attributes
+            lp.height = (resources.displayMetrics.heightPixels * 0.8).toInt()
+            w.attributes = lp
+        }
     }
 
     /**

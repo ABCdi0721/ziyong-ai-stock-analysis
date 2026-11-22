@@ -285,8 +285,27 @@ object LlmApi {
         "timeout", "timed out", "http 4", "http 5"
     )
 
+    /** 英文第一人称推理/思考链口吻（小写匹配），正常中文结论不会出现 */
+    private val thinkMarkers = listOf(
+        "as research manager", "as a research", "i need to weigh", "my verdict",
+        "i can infer", "let me think", "the bear argument", "the bull argument",
+        "being challenged", "i think the", "research manager, i", "the bull argument about",
+        // 模型复述/拆解任务指令、列提纲的开头（弱模型把 system/user 任务当正文复述）
+        "the user wants me", "let me extract", "let me outline", "let me list",
+        "act as a", "reviewing the four", "strongest bullish", "strongest bearish"
+    )
+
+    /** 中文角色自述/权衡过程口吻（正常结论只给判断，不写扮演过程） */
+    private val chineseThinkMarkers = listOf(
+        "作为组合经理", "作为交易员", "作为研究经理", "作为多头研究员", "作为空头研究员",
+        "作为风控", "作为分析师", "我需要权衡", "用户要求我", "格式要求",
+        "最终决策应该是", "裁决过程", "权衡上面"
+    )
+
+    private val wordRegex = Regex("[A-Za-z]+")
+
     /**
-     * 结果质量闸门：拦截空回复、英文思考链/大段英文作答、堆栈与错误串。
+     * 结果质量闸门：拦截空回复、英文思考链/大段英文作答、中英混杂但英文占主导的推理串、堆栈与错误串。
      * 中转站/免费模型延迟或异常时，这类内容不作为分析结论落库，视同失败走轮换或本地兜底。
      */
     private fun isUsableReply(text: String?): Boolean {
@@ -294,10 +313,15 @@ object LlmApi {
         if (t.isBlank()) return false
         val lower = t.lowercase()
         if (badMarkers.any { lower.contains(it) }) return false
+        if (thinkMarkers.any { lower.contains(it) }) return false
+        if (chineseThinkMarkers.any { lower.contains(it) }) return false
         val cjk = Regex("[一-鿿]").findAll(t).count()
         val latin = Regex("[A-Za-z]").findAll(t).count()
-        // 中文极少且拉丁字母占多数：视为英文作答或推理思考链，不可用
+        val words = wordRegex.findAll(t).count()
+        // 中文极少且拉丁字母占多数：整段英文作答或推理思考链，不可用
         if (cjk < 8 && latin >= 30) return false
+        // 中英混杂但普通英文词占主导（正常中文结论里英文多为 MA5/PB 等少量缩写，词数远少于汉字）
+        if (words >= 20 && words > cjk) return false
         return true
     }
 

@@ -10,6 +10,6 @@
     android:textSize="14sp"
     android:textStyle="bold"
     android:textColor="?attr/dsaText"
-    android:background="?attr/dsaCard"
+    android:background="@android:color/transparent"
     android:ellipsize="end"
     android:singleLine="true" />

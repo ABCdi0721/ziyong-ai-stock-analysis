@@ -632,6 +632,72 @@ object Prefs {
         sp(ctx).edit().putString("custom_strategy", o.toString()).apply()
     }
 
+    // ---- v2.12.48：多套自定义策略（命名保存 / 覆盖 / 删除） ----
+
+    private fun strategyToJson(s: ScreenStrategy): JSONObject = JSONObject()
+        .put("name", s.name)
+        .put("tech_weight", s.techWeight)
+        .put("price_min", s.priceMin).put("price_max", s.priceMax)
+        .put("mv_min", s.mvMin).put("mv_max", s.mvMax)
+        .put("pe_max", s.peMax).put("pe_min", s.peMin).put("pb_max", s.pbMax)
+        .put("vr_min", s.vrMin).put("vr_max", s.vrMax)
+        .put("turnover_min", s.turnoverMin).put("turnover_max", s.turnoverMax)
+        .put("change_min", s.changeMin).put("change_max", s.changeMax)
+        .put("amount_min", s.amountMin)
+
+    private fun strategyFromJson(o: JSONObject): ScreenStrategy {
+        fun opt(name: String): Double? =
+            if (o.has(name) && !o.isNull(name)) o.optDouble(name) else null
+        return ScreenStrategy(
+            name = o.optString("name", "自定义策略"),
+            techWeight = if (o.has("tech_weight")) o.optDouble("tech_weight", 0.35) else 0.35,
+            priceMin = opt("price_min"), priceMax = opt("price_max"),
+            mvMin = opt("mv_min"), mvMax = opt("mv_max"),
+            peMax = opt("pe_max"), peMin = opt("pe_min"), pbMax = opt("pb_max"),
+            vrMin = opt("vr_min"), vrMax = opt("vr_max"),
+            turnoverMin = opt("turnover_min"), turnoverMax = opt("turnover_max"),
+            changeMin = opt("change_min"), changeMax = opt("change_max"),
+            amountMin = opt("amount_min")
+        )
+    }
+
+    /** 已保存的自定义策略列表；首次升级时把旧版单套 custom_strategy 迁移进来 */
+    fun customStrategies(ctx: Context): List<ScreenStrategy> {
+        val raw = sp(ctx).getString("custom_strategies", "") ?: ""
+        if (raw.isNotBlank()) {
+            return try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).map { strategyFromJson(arr.optJSONObject(it) ?: JSONObject()) }
+            } catch (e: Exception) { emptyList() }
+        }
+        // 迁移旧单套
+        legacyCustomStrategy(ctx)?.let { return listOf(it) }
+        return emptyList()
+    }
+
+    fun saveCustomStrategies(ctx: Context, list: List<ScreenStrategy>) {
+        val arr = JSONArray(list.map { strategyToJson(it) })
+        sp(ctx).edit().putString("custom_strategies", arr.toString()).apply()
+    }
+
+    /** 按名称覆盖保存；名称不存在则新增 */
+    fun upsertCustomStrategy(ctx: Context, s: ScreenStrategy) {
+        val list = customStrategies(ctx).toMutableList()
+        val idx = list.indexOfFirst { it.name == s.name }
+        if (idx >= 0) list[idx] = s else list.add(s)
+        saveCustomStrategies(ctx, list)
+    }
+
+    fun deleteCustomStrategy(ctx: Context, name: String) {
+        saveCustomStrategies(ctx, customStrategies(ctx).filterNot { it.name == name })
+    }
+
+    /** 旧版单套自定义策略（迁移用，新代码请走 customStrategies） */
+    private fun legacyCustomStrategy(ctx: Context): ScreenStrategy? {
+        val old = customStrategy(ctx) ?: return null
+        return old.copy(name = "自定义策略(旧)")
+    }
+
     // ---- 自选股 ----
     fun watchlist(ctx: Context): List<String> {
         val raw = sp(ctx).getString("watchlist", "[]") ?: "[]"
@@ -861,6 +927,23 @@ object Prefs {
         history(ctx).filter { isErrorReport(it) }
 
     /**
+     * 可清理的历史记录：报错/空报告，或评分 ≤50 的旧记录；用户收藏的一律保留。
+     * 新分析本就不会把这两类写入历史，这里用于清理阈值上线前残留的旧记录。
+     */
+    fun prunableReports(ctx: Context): List<HistoryReport> =
+        history(ctx).filter { !it.favorite && (isErrorReport(it) || it.score <= HISTORY_MIN_SCORE) }
+
+    /** 删除可清理的历史记录，返回删除条数；收藏记录不受影响 */
+    fun pruneWeakReports(ctx: Context): Int {
+        val list = history(ctx)
+        val drop = list.filter { !it.favorite && (isErrorReport(it) || it.score <= HISTORY_MIN_SCORE) }
+        if (drop.isEmpty()) return 0
+        val keep = list.filterNot { it in drop }
+        persist(ctx, keep)
+        return drop.size
+    }
+
+    /**
      * 报告页可能只拿到内容、拿不到 id（自动保存的场景）：
      * 按「代码 + 日期 + 正文」反查唯一 id，查不到返回 0。
      */
@@ -925,6 +1008,8 @@ object Prefs {
         // 业务数据兜底：自选股列表 / 历史报告（全量遍历已带，这里显式保证不被遗漏）
         if (!data.has("watchlist")) data.put("watchlist", sp(ctx).getString("watchlist", "[]"))
         if (!data.has("history")) data.put("history", sp(ctx).getString("history", "[]"))
+        // v2.12.48：自定义选股策略多套配置显式纳入备份
+        if (!data.has("custom_strategies")) data.put("custom_strategies", sp(ctx).getString("custom_strategies", "[]"))
         root.put("data", data)
         return root
     }

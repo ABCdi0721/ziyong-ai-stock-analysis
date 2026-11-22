@@ -146,7 +146,8 @@ object MultiAgent {
             "2) 输出中文，直接给结论，不写「好的」「以下是」这类解释性前言；\n" +
             "3) 结构用「## 标题」分点，末尾给一个明确倾向；\n" +
             "4) 严格遵守本次任务要求的字数上限，宁短不长；\n" +
-            "5) 不要使用 ** 加粗、* 斜体等 Markdown 装饰符号，只用纯文本。"
+            "5) 不要使用 ** 加粗、* 斜体等 Markdown 装饰符号，只用纯文本；\n" +
+            "6) 只输出最终结论：不要复述任务要求、不要描述你扮演的角色、不要写内心权衡过程或备选方案，禁止出现「作为…」「我需要权衡」「用户要求」「格式要求」「或者：」这类过程性语句。"
 
     private const val TASK_ANALYSTS =
         "【本次任务】你是投研团队的四位分析师，请一次性依次完成四段分析。每段 150-220 字，段落标题必须逐字使用下面四个：\n" +
@@ -157,35 +158,35 @@ object MultiAgent {
             "每段末尾给明确倾向（看多/看空/中性）。不要输出这四段以外的任何内容，也不要解释你在做什么。"
 
     private const val TASK_BULL =
-        "【本次任务】你是多头研究员。审视上面的四位分析师报告，找出最强的看多逻辑，组织成结构化多头论点（每点给出依据），为交易员提供买入理由。" +
-            "200-320字，分点列出，客观不夸张。"
+        "【本次任务】你是多头研究员。审视上面的四位分析师报告与原始线索，找出最强的看多逻辑，组织成结构化多头论点（每点给出依据），为交易员提供买入理由。" +
+            "必须基于给定的看多理由、正面指标与利好新闻提炼；给定材料中没有的利好不得编造。200-320字，分点列出，客观不夸张。"
 
     private const val TASK_BEAR =
-        "【本次任务】你是空头研究员。审视上面的四位分析师报告，找出最强的看空逻辑与风险点，组织成结构化空头论点（每点给出依据），为交易员提供风险警示。" +
-            "200-320字，分点列出，客观不夸张。"
+        "【本次任务】你是空头研究员。审视上面的四位分析师报告与原始风险线索，找出最强的看空逻辑与风险点，组织成结构化空头论点（每点给出依据），为交易员提供风险警示。" +
+            "必须基于给定的风险因素、利空新闻与走弱指标逐条提炼；给定材料中没有的利空不得编造，也不要只依据当日涨跌臆测。200-320字，分点列出，客观不夸张。"
 
     private const val TASK_RESEARCH_MGR =
         "【本次任务】你是研究经理。权衡上面的多头与空头观点，裁决哪一方论据更强，给出研究层面的倾向。输出格式（严格按此格式）：\n" +
             "## 研究经理汇总\n倾向：偏多/偏空/均衡\n关键依据：...（80字内）\n主要风险：...（60字内）\n" +
-            "不要重复罗列多空原文，只给裁决结论。"
+            "不要重复罗列多空原文，只给裁决结论；不要写裁决过程、角色自述或备选倾向。"
 
     private const val TASK_TRADER =
         "【本次任务】你是交易员。综合上面的研究经理汇总、多空辩论与技术面要点，做出交易决策。输出格式（严格按此格式）：\n" +
             "## 交易决策\n方向：买入/卖出/加仓/减仓/持有/清仓/观望\n" +
             "仓位建议：x成仓（有持仓则为现有仓位下加/减到几成；无持仓则为新建仓位几成）\n" +
             "理想买入点：xxx元（或区间）\n止损价位：xxx元\n止盈目标：xxx元\n持有期：短线(数日)/波段(数周)/中线(数月)\n理由：150字内\n" +
-            "要求决策果断、给出具体价位，基于上述证据，不模棱两可。"
+            "要求决策果断、给出具体价位，基于上述证据，不模棱两可；只输出规定格式的决策结论，不写权衡过程或备选方案。"
 
     private const val TASK_RISK =
         "【本次任务】你是风险管理专员。评估上面交易员决策的风险：市场波动风险、流动性风险、下行空间、止损是否合理；" +
             "若提供了现有持仓，需结合持仓成本与仓位占比评估集中度、浮亏承受与加减仓风险。" +
             "给出风险评估等级（低/中/高）与改进建议。输出格式（严格按此格式）：\n" +
-            "## 风险评估\n风险等级：低/中/高\n主要风险：...\n止损是否合理：是/否，建议...\n仓位建议：...\n150字内。"
+            "## 风险评估\n风险等级：低/中/高\n主要风险：...\n止损是否合理：是/否，建议...\n仓位建议：...\n150字内。只输出结论，不写评估过程。"
 
     private const val TASK_PORTFOLIO =
         "【本次任务】你是投资组合经理。综合上面的交易员决策与风控评估，做出最终决定：批准、否决或调整该交易。输出格式（严格按此格式）：\n" +
             "## 组合经理最终决策\n最终决策：批准买入/批准卖出/观望/否决\n仓位上限：x成\n持有期：短线/波段/中线\n信心评分：0-100整数\n理由：150字内\n" +
-            "必须给出最终决策与信心评分，作为整个分析流程的结论。"
+            "必须给出最终决策与信心评分，作为整个分析流程的结论；只输出规定格式的终审结论，不写权衡过程、角色自述或备选方案。"
 
     // ===================== 文本工具 =====================
 
@@ -720,7 +721,6 @@ object MultiAgent {
         val lean = Prefs.isLean(ctx)
         val newsLimit = if (lean) 4 else 6
         val snippetLimit = if (lean) 60 else 100
-        val reportLimit = if (lean) 320 else Int.MAX_VALUE
 
         LlmApi.resetStats()
 
@@ -844,7 +844,7 @@ object MultiAgent {
         val analystText = ask(
             TASK_ANALYSTS,
             extra = analystExtra,
-            maxTokens = 1400
+            maxTokens = 1800
         )
 
         val analystParts = splitAnalystSections(analystText)
@@ -870,18 +870,32 @@ object MultiAgent {
         onStage("技术分析师", "完成", technical)
 
         val fourReports = buildString {
-            appendLine("【基本面分析师】\n${fundamentals.take(reportLimit)}")
-            appendLine("【情绪分析师】\n${sentiment.take(reportLimit)}")
-            appendLine("【新闻分析师】\n${newsImpact.take(reportLimit)}")
-            appendLine("【技术分析师】\n${technical.take(reportLimit)}")
+            appendLine("【基本面分析师】\n$fundamentals")
+            appendLine("【情绪分析师】\n$sentiment")
+            appendLine("【新闻分析师】\n$newsImpact")
+            appendLine("【技术分析师】\n$technical")
+        }
+
+        // v2.12.47：原始本地证据（不经过模型二次概括），作为多空研究员的客观兜底线索。
+        // 避免分析师环节输出偏弱、被截断或稀释利空时，多空手里只剩二手结论，只能凭当日走势臆测。
+        val evidenceBlock = buildString {
+            appendLine("【原始行情与估值】")
+            appendLine(quoteBlock)
+            appendLine()
+            appendLine("【原始技术指标与本地风险/看多线索】")
+            appendLine(techBlock)
+            appendLine()
+            appendLine("【近期新闻线索】")
+            append(newsBlock)
         }
 
         // ---- 2. 多空研究员辩论（两者都只依赖四份分析师报告，无相互依赖，并行调用省一轮墙钟） ----
         onStage("多头研究员", "辩论中", "")
         onStage("空头研究员", "辩论中", "")
         val debatePool = Executors.newFixedThreadPool(2)
-        val bullF = debatePool.submit(Callable<String> { ask(TASK_BULL, extra = "【四位分析师报告】\n$fourReports", maxTokens = 700) })
-        val bearF = debatePool.submit(Callable<String> { ask(TASK_BEAR, extra = "【四位分析师报告】\n$fourReports", maxTokens = 700) })
+        val debateContext = "【四位分析师报告】\n$fourReports\n\n$evidenceBlock"
+        val bullF = debatePool.submit(Callable<String> { ask(TASK_BULL, extra = debateContext, maxTokens = 800) })
+        val bearF = debatePool.submit(Callable<String> { ask(TASK_BEAR, extra = debateContext, maxTokens = 800) })
         val bullRaw = try { bullF.get(60, TimeUnit.SECONDS) } catch (e: Exception) { "" }
         val bearRaw = try { bearF.get(60, TimeUnit.SECONDS) } catch (e: Exception) { "" }
         debatePool.shutdown()
@@ -891,8 +905,8 @@ object MultiAgent {
         onStage("空头研究员", "完成", bear)
 
         val debate = buildString {
-            appendLine("【多头研究员观点】\n${bull.take(reportLimit)}")
-            appendLine("【空头研究员观点】\n${bear.take(reportLimit)}")
+            appendLine("【多头研究员观点】\n$bull")
+            appendLine("【空头研究员观点】\n$bear")
         }
 
         // ---- 3. 研究经理汇总：多空辩论后裁决更强一方，再交交易员（对齐 TradingAgents Research Manager） ----
@@ -905,7 +919,7 @@ object MultiAgent {
         onStage("交易员", "决策中", "")
         val traderRaw = ask(
             TASK_TRADER,
-            extra = "【研究经理汇总】\n$research\n\n【多空辩论结论】\n$debate\n\n$holdingBlock",
+            extra = "【研究经理汇总】\n$research\n\n【多空辩论结论】\n$debate\n\n$evidenceBlock\n\n$holdingBlock",
             temp = 0.3, maxTokens = 520
         )
         val trader = traderRaw.ifBlank { localTrader(snap).also { degraded++ } }.let { stripHeading(it) }
