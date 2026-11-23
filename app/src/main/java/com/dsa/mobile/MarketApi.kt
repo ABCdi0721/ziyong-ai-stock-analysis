@@ -2,6 +2,7 @@ package com.dsa.mobile
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 
 /**
  * v2.9.0 大盘分析数据层
@@ -17,6 +18,21 @@ object MarketApi {
         val changePct: Double,
         val upCount: Int,
         val downCount: Int
+    )
+
+    /** 大盘页横滑指数卡片行情 */
+    data class IndexQuote(
+        val name: String,
+        val price: Double,
+        val change: Double,
+        val changePct: Double
+    )
+
+    /** 涨跌分布单档：kind 1 涨 / 0 平 / -1 跌 */
+    data class DistBucket(
+        val label: String,
+        val count: Int,
+        val kind: Int
     )
 
     data class MarketData(
@@ -38,6 +54,13 @@ object MarketApi {
         val upSectors: List<Sector>,
         val downSectors: List<Sector>,
         val totalSectors: Int,
+        val indices: List<IndexQuote>,
+        val breadthUp: Int,
+        val breadthDown: Int,
+        val breadthFlat: Int,
+        val sectorSource: String,
+        val distribution: List<DistBucket>?,
+        val medianPct: Double,
         val elapsedMs: Long,
         val updateTime: String
     )
@@ -72,12 +95,126 @@ object MarketApi {
 
     private fun fmt(v: Double): String = String.format("%.2f", v)
 
+    // ---- 财联社限流防封（与东财同一套策略：间隔≥900ms + 连续3次失败标记封禁）----
+    @Volatile private var clsBanned = false
+    private var clsFails = 0
+    private var lastClsTs = 0L
+    private val clsLock = Any()
+
+    private fun hexLower(bytes: ByteArray): String =
+        bytes.joinToString("") { "%02x".format(it) }
+
+    /** 财联社签名：参数排序拼串 → SHA-1 → MD5（小写 hex） */
+    private fun clsSign(params: Map<String, String>): String {
+        val raw = params.keys.sorted().joinToString("&") { "$it=${params[it]}" }
+        val sha1 = MessageDigest.getInstance("SHA-1").digest(raw.toByteArray(Charsets.UTF_8))
+            .let { hexLower(it) }
+        return MessageDigest.getInstance("MD5").digest(sha1.toByteArray(Charsets.UTF_8))
+            .let { hexLower(it) }
+    }
+
+    /** 财联社统一 GET：补公共参数、带 sign；业务码非 200 或异常记失败，连续 3 次后跳过 */
+    private fun clsGet(path: String, extra: Map<String, String> = emptyMap()): JSONObject? {
+        if (clsBanned) return null
+        synchronized(clsLock) {
+            val now = System.currentTimeMillis()
+            val wait = 900L - (now - lastClsTs)
+            if (wait > 0) Thread.sleep(wait)
+            lastClsTs = System.currentTimeMillis()
+        }
+        return try {
+            val params = mutableMapOf("os" to "web", "sv" to "8.7.9", "app" to "CailianpressWeb")
+            params.putAll(extra)
+            params["sign"] = clsSign(params)
+            val qs = params.entries.joinToString("&") { "${it.key}=${it.value}" }
+            val raw = Http.get(
+                "https://x-quote.cls.cn$path?$qs",
+                mapOf("Referer" to "https://www.cls.cn/quotation")
+            )
+            val j = JSONObject(raw)
+            if (j.optInt("code", -1) == 200 && j.optJSONObject("data") != null) {
+                clsFails = 0
+                j
+            } else {
+                clsFails++
+                if (clsFails >= 3) clsBanned = true
+                null
+            }
+        } catch (e: Exception) {
+            clsFails++
+            if (clsFails >= 3) clsBanned = true
+            null
+        }
+    }
+
+    /** 财联社大盘总览解析结果：A 股指数行情 + 全市场涨跌家数 + 分档分布 */
+    private data class ClsOverview(
+        val indices: Map<String, IndexQuote>,
+        val breadth: Triple<Int, Int, Int>?,
+        val distribution: List<DistBucket>?,
+        val medianPct: Double
+    )
+
+    /** 拉取财联社总览（一次返回指数分时与涨跌分布）；失败返回 null */
+    private fun fetchClsOverview(): ClsOverview? {
+        val j = clsGet("/v2/quote/a/web/overview") ?: return null
+        val data = j.optJSONObject("data") ?: return null
+
+        val indices = LinkedHashMap<String, IndexQuote>()
+        val tlines = data.optJSONObject("index_tlines")
+        if (tlines != null) {
+            tlines.keys().forEach { code ->
+                val o = tlines.optJSONObject(code) ?: return@forEach
+                val name = o.optString("secu_name", "")
+                if (name.isBlank()) return@forEach
+                val price = o.optString("last_px", "0").toDoubleOrNull() ?: 0.0
+                val changePx = o.optString("change_px", "0").toDoubleOrNull() ?: 0.0
+                val pct = o.optString("change", "0").removePrefix("+").removeSuffix("%")
+                    .toDoubleOrNull() ?: 0.0
+                if (price > 0) indices[name] = IndexQuote(name, price, changePx, pct)
+            }
+        }
+
+        var breadth: Triple<Int, Int, Int>? = null
+        var distribution: List<DistBucket>? = null
+        var medianPct = 0.0
+        val dis = data.optJSONObject("up_down_dis")
+        if (dis != null && dis.optBoolean("status", false)) {
+            val up = dis.optInt("rise_num", 0)
+            val down = dis.optInt("fall_num", 0)
+            val flat = dis.optInt("flat_num", 0)
+            breadth = Triple(up, down, flat)
+            medianPct = dis.optDouble("average_rise", 0.0) * 100.0
+            val rawBuckets = listOf(
+                "涨停" to dis.optInt("up_num", 0) to 1,
+                "+10%" to dis.optInt("up_10", 0) to 1,
+                "+8%" to dis.optInt("up_8", 0) to 1,
+                "+6%" to dis.optInt("up_6", 0) to 1,
+                "+4%" to dis.optInt("up_4", 0) to 1,
+                "+2%" to dis.optInt("up_2", 0) to 1,
+                "0%" to dis.optInt("flat_num", 0) to 0,
+                "-2%" to dis.optInt("down_2", 0) to -1,
+                "-4%" to dis.optInt("down_4", 0) to -1,
+                "-6%" to dis.optInt("down_6", 0) to -1,
+                "-8%" to dis.optInt("down_8", 0) to -1,
+                "-10%" to dis.optInt("down_10", 0) to -1,
+                "跌停" to dis.optInt("down_num", 0) to -1
+            )
+            distribution = rawBuckets.map { (pair, kind) ->
+                DistBucket(pair.first, pair.second, kind)
+            }
+        }
+        if (indices.isEmpty() && breadth == null) return null
+        return ClsOverview(indices, breadth, distribution, medianPct)
+    }
+
     /** 主入口：拉取全部大盘数据（后台线程调用） */
     fun load(): MarketData {
         val t0 = System.currentTimeMillis()
 
-        // 1) 三指数实时行情（腾讯）
-        val quotes = fetchIndexQuotes()
+        // 1) 指数实时行情：财联社优先，缺失回落腾讯
+        val cls = fetchClsOverview()
+        val quotes = mergeTopQuotes(cls)
         val sh = quotes["上证指数"] ?: QuotePoint("上证指数", 0.0, 0.0, 0.0)
 
         // 2) 上证指数日K（三级降级）
@@ -132,8 +269,19 @@ object MarketApi {
             "道氏相互验证：✓ 指数共振（升$daoUp·降$daoDown·震$daoShake）—— ${quotes.keys.joinToString("、")} 走强 → 可顺势持仓"
         }
 
-        // 6) 行业板块强弱（东财，限流；失败降级为空）
-        val (up, down, total) = fetchSectors()
+        // 6) 板块强弱：财联社优先，失败回落东财
+        val sectorBundle = fetchSectors()
+        val up = sectorBundle.up
+        val down = sectorBundle.down
+        val total = sectorBundle.total
+        val sectorSrc = sectorBundle.source
+
+        // 7) 多指数横滑行情（财联社 A 股 + 腾讯补海外/其余）；涨跌家数财联社优先，失败回落东财
+        val indices = mergeAllIndices(cls)
+        val breadth = cls?.breadth ?: fetchBreadthEm()
+        val bUp = breadth?.first ?: -1
+        val bDown = breadth?.second ?: -1
+        val bFlat = breadth?.third ?: -1
 
         val now = java.util.Date()
         val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
@@ -148,6 +296,11 @@ object MarketApi {
             strategy = strategy, tactic = tactic, practice = practice, risk = risk,
             warnLine1 = warn1, daoLine = daoLine,
             upSectors = up, downSectors = down, totalSectors = total,
+            indices = indices,
+            breadthUp = bUp, breadthDown = bDown, breadthFlat = bFlat,
+            sectorSource = sectorSrc,
+            distribution = cls?.distribution,
+            medianPct = cls?.medianPct ?: 0.0,
             elapsedMs = System.currentTimeMillis() - t0,
             updateTime = sdf.format(now)
         )
@@ -179,6 +332,89 @@ object MarketApi {
             out[name] = QuotePoint(name, price, prev, pct)
         }
         return out
+    }
+
+    /** 顶部三指数：财联社优先，缺失的用腾讯补齐 */
+    private fun mergeTopQuotes(cls: ClsOverview?): Map<String, QuotePoint> {
+        val out = LinkedHashMap<String, QuotePoint>()
+        cls?.indices?.forEach { (name, q) ->
+            out[name] = QuotePoint(name, q.price, q.price - q.change, q.changePct)
+        }
+        fetchIndexQuotes().forEach { (name, q) -> out.putIfAbsent(name, q) }
+        return out
+    }
+
+    /** 大盘页横滑指数清单：A 股 / 港股 / 美股；日经代码兼容失败时静默跳过 */
+    private val INDEX_SYMS = listOf(
+        "sh000001" to "上证指数",
+        "sz399001" to "深证成指",
+        "sz399006" to "创业板指",
+        "sh000300" to "沪深300",
+        "sh000688" to "科创50",
+        "sh000015" to "上证红利",
+        "sh000016" to "上证50",
+        "sh000905" to "中证500",
+        "bj899050" to "北证50",
+        "hkHSI" to "恒生指数",
+        "hkHSTECH" to "恒生科技",
+        "usDJI" to "道琼斯",
+        "usIXIC" to "纳斯达克",
+        "usSPX" to "标普500",
+        "int_nikkei" to "日经225"
+    )
+
+    /** 批量拉取横滑指数行情（腾讯 qt 接口）；解析不到的指数跳过 */
+    private fun fetchAllIndices(): List<IndexQuote> {
+        val raw = try {
+            Http.get("https://qt.gtimg.cn/q=${INDEX_SYMS.joinToString(",") { it.first }}")
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        val bySym = HashMap<String, Triple<Double, Double, Double>>()
+        Regex("v_(\\w+)=\"([^\"]*)\"").findAll(raw).forEach { m ->
+            val sym = m.groupValues[1]
+            val parts = m.groupValues[2].split("~")
+            if (parts.size < 33) return@forEach
+            val price = parts[3].toDoubleOrNull() ?: 0.0
+            val prev = parts[4].toDoubleOrNull() ?: 0.0
+            val pct = parts[32].toDoubleOrNull() ?: 0.0
+            if (price > 0) bySym[sym] = Triple(price, prev, pct)
+        }
+        return INDEX_SYMS.mapNotNull { (sym, name) ->
+            val q = bySym[sym] ?: return@mapNotNull null
+            IndexQuote(name, q.first, q.first - q.second, q.third)
+        }
+    }
+
+    /** 横滑指数：腾讯清单为骨架，财联社 A 股行情覆盖同名项；海外/其余沿用腾讯 */
+    private fun mergeAllIndices(cls: ClsOverview?): List<IndexQuote> {
+        val tencent = fetchAllIndices()
+        val clsByName = cls?.indices
+        return tencent.map { q -> clsByName?.get(q.name) ?: q }
+    }
+
+    /** 全市场涨跌家数：东财 clist 按涨跌幅分页统计；失败返回 null（由上层降级） */
+    private fun fetchBreadthEm(): Triple<Int, Int, Int>? {
+        val fs = "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"
+        var up = 0; var down = 0; var flat = 0
+        try {
+            for (page in 1..6) {
+                val url = "https://push2.eastmoney.com/api/qt/clist/get" +
+                    "?pn=$page&pz=1000&po=1&np=1&fltt=2&invt=2&fid=f3&fs=$fs&fields=f3"
+                val raw = Http.get(url) ?: return null
+                val data = JSONObject(raw).optJSONObject("data") ?: break
+                val arr = data.optJSONArray("diff") ?: break
+                if (arr.length() == 0) break
+                for (i in 0 until arr.length()) {
+                    val v = arr.optJSONObject(i)?.optDouble("f3", 0.0) ?: 0.0
+                    when { v > 0 -> up++; v < 0 -> down++; else -> flat++ }
+                }
+                if (up + down + flat >= data.optInt("total", 0)) break
+            }
+        } catch (e: Exception) {
+            return null
+        }
+        return Triple(up, down, flat)
     }
 
     /** 上证指数收盘价序列：东财 push2his → 腾讯 fqkline → 新浪 K线 */
@@ -231,8 +467,45 @@ object MarketApi {
         return emptyList()
     }
 
+    private data class SectorBundle(
+        val up: List<Sector>, val down: List<Sector>, val total: Int, val source: String
+    )
+
+    /** 板块调度：先财联社行业/概念/地域榜，失败或限流回落东财行业板块 */
+    private fun fetchSectors(): SectorBundle {
+        fetchClsSectors()?.let {
+            return SectorBundle(it.first, it.second, it.third, "财联社行业/概念板块")
+        }
+        val em = fetchSectorsEm()
+        return SectorBundle(em.first, em.second, em.third, "东方财富行业板块")
+    }
+
+    /** 财联社热门板块（行业+概念+地域），按涨幅取领涨5/领跌5；失败返回 null */
+    private fun fetchClsSectors(): Triple<List<Sector>, List<Sector>, Int>? {
+        val j = clsGet(
+            "/web_quote/plate/hot_plate",
+            mapOf("type" to "industry,concept,area", "way" to "change", "rever" to "1")
+        ) ?: return null
+        val data = j.optJSONObject("data") ?: return null
+        val all = ArrayList<Sector>()
+        listOf("industry", "concept", "area").forEach { key ->
+            val arr = data.optJSONArray(key) ?: return@forEach
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val name = o.optString("secu_name", "")
+                if (name.isBlank()) continue
+                val change = o.optDouble("change", 0.0) * 100.0
+                all += Sector(name, change, 0, 0)
+            }
+        }
+        if (all.isEmpty()) return null
+        val up = all.sortedByDescending { it.changePct }.take(5)
+        val down = all.sortedBy { it.changePct }.take(5)
+        return Triple(up, down, all.size)
+    }
+
     /** 东财行业板块强弱排行（领涨5/领跌5） */
-    private fun fetchSectors(): Triple<List<Sector>, List<Sector>, Int> {
+    private fun fetchSectorsEm(): Triple<List<Sector>, List<Sector>, Int> {
         if (emBanned) return Triple(emptyList(), emptyList(), 0)
         fun page(po: Int): Pair<List<Sector>, Int> {
             val url = "https://push2.eastmoney.com/api/qt/clist/get" +

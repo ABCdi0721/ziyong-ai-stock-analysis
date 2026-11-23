@@ -710,12 +710,20 @@ object Prefs {
         if (code !in list) {
             list.add(code)
             sp(ctx).edit().putString("watchlist", JSONArray(list).toString()).apply()
+            // 记录加入自选时间，作为持仓天数起算点
+            val ts = watchJoinMap(ctx)
+            ts.put(code, System.currentTimeMillis())
+            sp(ctx).edit().putString("watch_join_ts", ts.toString()).apply()
         }
     }
 
     fun removeWatch(ctx: Context, code: String) {
         val list = watchlist(ctx).filter { it != code }
         sp(ctx).edit().putString("watchlist", JSONArray(list).toString()).apply()
+        // 移出自选后清空加入时间，持仓天数不再起算
+        val ts = watchJoinMap(ctx)
+        ts.remove(code)
+        sp(ctx).edit().putString("watch_join_ts", ts.toString()).apply()
         // v2.12.32：联动取消该股已收藏的分析报告（仅取消收藏，不删除报告本体）
         val hist = history(ctx).toMutableList()
         var touched = false
@@ -726,9 +734,32 @@ object Prefs {
             }
         }
         if (touched) persist(ctx, hist)
+        // v2.12.58：移除自选即清空该股持仓记录（成本/持股/总资金/周期/天数），重新添加后回到默认空态
+        saveHolding(ctx, code, null)
     }
 
     fun inWatchlist(ctx: Context, code: String): Boolean = code in watchlist(ctx)
+
+    /** 自选加入时间戳表（code → millis）；旧数据无记录时返回空表 */
+    private fun watchJoinMap(ctx: Context): JSONObject {
+        val raw = sp(ctx).getString("watch_join_ts", "") ?: ""
+        return try { if (raw.isBlank()) JSONObject() else JSONObject(raw) } catch (e: Exception) { JSONObject() }
+    }
+
+    /** 该股加入自选的时间戳；不在自选或旧数据无记录返回 null */
+    fun watchJoinAt(ctx: Context, code: String): Long? {
+        if (!inWatchlist(ctx, code)) return null
+        val ts = watchJoinMap(ctx).optLong(code, 0L)
+        return if (ts > 0L) ts else null
+    }
+
+    /** 持仓天数：从加入自选当天起按自然日算；不在自选或时间未知返回 null */
+    fun holdingDays(ctx: Context, code: String): Int? {
+        val join = watchJoinAt(ctx, code) ?: return null
+        val diff = System.currentTimeMillis() - join
+        if (diff < 0L) return 0
+        return (diff / 86_400_000L).toInt()
+    }
 
     // ---- 历史报告 ----
     /** 历史报告入库最低评分：≤50 仅展示本次结果，不写入历史报告 */
@@ -835,13 +866,38 @@ object Prefs {
         if (raw.isBlank()) return null
         return try {
             val o = JSONObject(raw)
+            var base = o.optInt("holdDaysBase", -1).let { if (it >= 0) it else null }
+            var baseAt = o.optLong("holdDaysBaseAt", 0L).let { if (it > 0L) it else null }
+            // 兼容旧版本固定天数记录：迁移为以读取当天为起点的基准天数
+            if (base == null) {
+                val legacy = o.optInt("holdDaysOverride", -1)
+                if (legacy >= 0) {
+                    base = legacy
+                    if (baseAt == null) baseAt = System.currentTimeMillis()
+                }
+            }
             val h = Holding(
                 cost = o.optDouble("cost", 0.0),
                 shares = o.optDouble("shares", 0.0),
-                cash = o.optDouble("cash", 0.0)
+                cash = o.optDouble("cash", 0.0),
+                horizon = Holding.normalizeHorizon(o.optString("horizon", "")),
+                holdDaysBase = base,
+                holdDaysBaseAt = baseAt
             )
             if (h.valid) h else null
         } catch (e: Exception) { null }
+    }
+
+    /**
+     * 实际持有天数：手填基准 + 距基准填写日的自然日差（每天 +1）；
+     * 无手填基准则回落加入自选起算天数。
+     */
+    fun effectiveDays(h: Holding?, autoDays: Int?): Int? {
+        val base = h?.holdDaysBase ?: return autoDays
+        val baseAt = h.holdDaysBaseAt ?: return base
+        val diff = System.currentTimeMillis() - baseAt
+        val passed = if (diff <= 0L) 0 else (diff / 86_400_000L).toInt()
+        return base + passed
     }
 
     /** 保存持仓；传 null 或无效则清除记录 */
@@ -855,6 +911,11 @@ object Prefs {
             .put("cost", h.cost)
             .put("shares", h.shares)
             .put("cash", h.cash)
+            .put("horizon", Holding.normalizeHorizon(h.horizon))
+        if (h.holdDaysBase != null) {
+            o.put("holdDaysBase", h.holdDaysBase)
+            o.put("holdDaysBaseAt", h.holdDaysBaseAt ?: System.currentTimeMillis())
+        }
         sp(ctx).edit().putString(key, o.toString()).apply()
     }
 
@@ -1007,6 +1068,7 @@ object Prefs {
         }
         // 业务数据兜底：自选股列表 / 历史报告（全量遍历已带，这里显式保证不被遗漏）
         if (!data.has("watchlist")) data.put("watchlist", sp(ctx).getString("watchlist", "[]"))
+        if (!data.has("watch_join_ts")) data.put("watch_join_ts", sp(ctx).getString("watch_join_ts", ""))
         if (!data.has("history")) data.put("history", sp(ctx).getString("history", "[]"))
         // v2.12.48：自定义选股策略多套配置显式纳入备份
         if (!data.has("custom_strategies")) data.put("custom_strategies", sp(ctx).getString("custom_strategies", "[]"))

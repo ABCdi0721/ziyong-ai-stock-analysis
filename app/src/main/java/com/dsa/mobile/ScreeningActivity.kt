@@ -140,9 +140,7 @@ class ScreeningActivity : BaseActivity() {
             when {
                 strategy.name == NEW_CUSTOM_NAME ->
                     editCustomStrategy(null) { s -> runScreening(s) }
-                customStrategyList.any { it.name == strategy.name } ->
-                    // 自定义策略：先编辑参数再运行
-                    editCustomStrategy(strategy) { s -> runScreening(s) }
+                // 已保存的自定义策略：直接按其保存的参数选股，不再先弹编辑弹窗
                 else -> runScreening(strategy)
             }
             return@setOnClickListener

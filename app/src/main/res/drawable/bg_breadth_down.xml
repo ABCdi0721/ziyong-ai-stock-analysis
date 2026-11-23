@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 涨跌家数条·下跌段（绿色，仅圆左角） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#188038" />
+    <corners android:topLeftRadius="6dp" android:bottomLeftRadius="6dp" />
+</shape>

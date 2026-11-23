@@ -178,10 +178,24 @@ data class AnalysisResult(
 data class Holding(
     val cost: Double,    // 成本价（元）
     val shares: Double,  // 持股数量（股）
-    val cash: Double     // 可用总资金（元，0 表示未填）
+    val cash: Double,     // 可用总资金（元，0 表示未填）
+    val horizon: String = HORIZON_SHORT,  // 持仓周期：短线/中长线/长线
+    val holdDaysBase: Int? = null,       // 手填基准天数；null 用加入自选起算天数
+    val holdDaysBaseAt: Long? = null     // 基准填写当天时间戳（累计起点 millis）
 ) {
-    /** 成本与股数都有效才视为有持仓；总资金仅用于仓位占比，可缺 */
-    val valid: Boolean get() = cost > 0 && shares > 0
+    /** 成本、持股、总资金三项都填写才视为有持仓；任一缺失按无持仓视角 */
+    val valid: Boolean get() = cost > 0 && shares > 0 && cash > 0
+
+    companion object {
+        const val HORIZON_SHORT = "短线"
+        const val HORIZON_MID = "中长线"
+        const val HORIZON_LONG = "长线"
+        val HORIZONS = listOf(HORIZON_SHORT, HORIZON_MID, HORIZON_LONG)
+
+        /** 非法/空周期回落短线 */
+        fun normalizeHorizon(raw: String?): String =
+            if (raw in HORIZONS) raw!! else HORIZON_SHORT
+    }
 }
 
 /** 历史报告 */

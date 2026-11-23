@@ -175,18 +175,28 @@ object MultiAgent {
             "## 交易决策\n方向：买入/卖出/加仓/减仓/持有/清仓/观望\n" +
             "仓位建议：x成仓（有持仓则为现有仓位下加/减到几成；无持仓则为新建仓位几成）\n" +
             "理想买入点：xxx元（或区间）\n止损价位：xxx元\n止盈目标：xxx元\n持有期：短线(数日)/波段(数周)/中线(数月)\n理由：150字内\n" +
-            "要求决策果断、给出具体价位，基于上述证据，不模棱两可；只输出规定格式的决策结论，不写权衡过程或备选方案。"
+            "持仓对照规则（有持仓时必须遵守）：\n" +
+            "- 小幅浮亏且趋势未破位、基本面未恶化：持有观望，不补仓摊薄；\n" +
+            "- 明显浮亏，或已跌破止损位/均线走弱/利空兑现：减仓或卖出止损，不得继续观望；\n" +
+            "- 浮盈且趋势延续、量能配合：持有，回踩支撑位可加仓；\n" +
+            "- 浮盈但高位放量滞涨或跌破短期均线：减仓锁定利润；\n" +
+            "- 动作须匹配持仓周期：短线快进快出、破位即走；中长线容忍回踩，回踩支撑可持有或加仓；长线看基本面与中期趋势，短期波动不轻易卖出；\n" +
+            "- 持仓天数辅助判断：短线已持有多日仍浮亏需警惕走弱；中长线/长线短期浮亏不急于割肉；\n" +
+            "- 无持仓时才按评分给新建仓位。\n" +
+            "方向必须与盈亏档位和趋势证据一致，禁止把观望/持有当作无依据的默认答案；决策果断、给出具体价位，不模棱两可；只输出规定格式的决策结论，不写权衡过程或备选方案。"
 
     private const val TASK_RISK =
         "【本次任务】你是风险管理专员。评估上面交易员决策的风险：市场波动风险、流动性风险、下行空间、止损是否合理；" +
             "若提供了现有持仓，需结合持仓成本与仓位占比评估集中度、浮亏承受与加减仓风险。" +
+            "明显浮亏（≥5%）或已跌破止损位/关键均线时，必须明确给出减仓或止损离场建议，不能只提示「注意风险」而不给动作。" +
             "给出风险评估等级（低/中/高）与改进建议。输出格式（严格按此格式）：\n" +
             "## 风险评估\n风险等级：低/中/高\n主要风险：...\n止损是否合理：是/否，建议...\n仓位建议：...\n150字内。只输出结论，不写评估过程。"
 
     private const val TASK_PORTFOLIO =
-        "【本次任务】你是投资组合经理。综合上面的交易员决策与风控评估，做出最终决定：批准、否决或调整该交易。输出格式（严格按此格式）：\n" +
-            "## 组合经理最终决策\n最终决策：批准买入/批准卖出/观望/否决\n仓位上限：x成\n持有期：短线/波段/中线\n信心评分：0-100整数\n理由：150字内\n" +
-            "必须给出最终决策与信心评分，作为整个分析流程的结论；只输出规定格式的终审结论，不写权衡过程、角色自述或备选方案。"
+        "【本次任务】你是投资组合经理。综合上面的交易员决策、风控评估与现有持仓盈亏，做出最终决定：批准、否决或调整该交易。输出格式（严格按此格式）：\n" +
+            "## 组合经理最终决策\n最终决策：批准买入/批准卖出/加仓/持有/减仓/清仓/观望/否决\n仓位上限：x成\n持有期：短线/波段/中线\n信心评分：0-100整数\n理由：150字内\n" +
+            "终审需与交易员决策、持仓盈亏和持仓周期一致：交易员基于破位或明显浮亏建议减仓/止损且证据成立时，不得改判观望；" +
+            "浮盈趋势延续可批准持有或加仓；短线决策快进快出，中长线/长线容忍正常回踩；无持仓才给新建仓位结论。必须给出最终决策与信心评分，作为整个分析流程的结论；只输出规定格式的终审结论，不写权衡过程、角色自述或备选方案。"
 
     // ===================== 文本工具 =====================
 
@@ -410,8 +420,19 @@ object MultiAgent {
         append("。")
     }
 
-    private fun localTrader(s: Snap): String = buildString {
-        val dir = if (s.score >= 70) "买入" else "观望"
+    private fun localTrader(s: Snap, holding: Holding? = null, days: Int? = null): String = buildString {
+        val h = holding?.takeIf { it.valid }
+        val pnlPct = if (h != null && s.price > 0 && h.cost > 0) (s.price / h.cost - 1.0) * 100 else Double.NaN
+        val horizon = Holding.normalizeHorizon(h?.horizon)
+        val dir = when {
+            h == null -> if (s.score >= 70) "买入" else "观望"
+            !pnlPct.isNaN() && pnlPct <= -5.0 && s.score < 55 -> "减仓"
+            !pnlPct.isNaN() && pnlPct <= -5.0 -> if (horizon == Holding.HORIZON_SHORT) "卖出" else "减仓"
+            !pnlPct.isNaN() && pnlPct > 5.0 && s.score >= 70 -> "持有"
+            !pnlPct.isNaN() && pnlPct < 0.0 ->
+                if (horizon == Holding.HORIZON_SHORT && s.score < 50) "观望" else "持有"
+            else -> if (s.score >= 70) "买入" else "观望"
+        }
         val pos = when {
             s.score >= 80 -> "8"
             s.score >= 70 -> "6"
@@ -429,9 +450,22 @@ object MultiAgent {
             appendLine("止损价位：${f2(stop)} 元")
             appendLine("止盈目标：${f2(s.price * 1.08)} 元（第一目标，按现价 +8% 估算）；${f2(s.price * 1.15)} 元（第二目标，按现价 +15% 估算）")
         }
-        appendLine("持有期：${if (s.score >= 70) "波段(数周)" else "短线(数日)"}")
+        appendLine("持有期：${horizonLabel(horizon, s.score)}")
         append("理由：综合评分 ${s.score}/100（${s.signal}）")
+        if (h != null) {
+            append("，持仓周期 $horizon")
+            days?.let { append("，已持有 $it 个自然日") }
+        }
+        if (h != null && !pnlPct.isNaN()) append("，现持仓浮动 ${if (pnlPct >= 0) "+" else ""}${f2(pnlPct)}%")
         append(if (s.risks.isNotBlank()) "，主要风险为${s.risks}。" else "，技术面与量能信号决定方向。")
+    }
+
+    /** 持仓周期 → 持有期文案；无持仓时按评分回落短线/波段 */
+    private fun horizonLabel(horizon: String, score: Int): String = when (horizon) {
+        Holding.HORIZON_SHORT -> "短线(数日)"
+        Holding.HORIZON_MID -> "波段(数周)"
+        Holding.HORIZON_LONG -> "中线(数月)"
+        else -> if (score >= 70) "波段(数周)" else "短线(数日)"
     }
 
     private fun localRisk(s: Snap): String = buildString {
@@ -452,13 +486,28 @@ object MultiAgent {
         append("仓位建议：${when { s.score >= 75 -> "6"; s.score >= 50 -> "4"; else -> "2" }}成仓以内，单票不超过总仓位三成。")
     }
 
-    private fun localPortfolio(s: Snap): String = buildString {
-        val dec = if (s.score >= 70) "批准买入" else "观望"
+    private fun localPortfolio(s: Snap, holding: Holding? = null, days: Int? = null): String = buildString {
+        val h = holding?.takeIf { it.valid }
+        val pnlPct = if (h != null && s.price > 0 && h.cost > 0) (s.price / h.cost - 1.0) * 100 else Double.NaN
+        val horizon = Holding.normalizeHorizon(h?.horizon)
+        val dec = when {
+            h != null && !pnlPct.isNaN() && pnlPct <= -5.0 && s.score < 55 -> "减仓"
+            h != null && !pnlPct.isNaN() && pnlPct <= -5.0 ->
+                if (horizon == Holding.HORIZON_SHORT) "批准卖出" else "减仓"
+            h != null && !pnlPct.isNaN() && pnlPct > 5.0 -> "持有"
+            s.score >= 70 -> "批准买入"
+            else -> "观望"
+        }
         appendLine("最终决策：$dec")
         appendLine("仓位上限：${when { s.score >= 80 -> "8"; s.score >= 70 -> "6"; s.score >= 50 -> "4"; else -> "2" }}成")
-        appendLine("持有期：${if (s.score >= 70) "波段(数周)" else "短线(数日)"}")
+        appendLine("持有期：${horizonLabel(horizon, s.score)}")
         appendLine("信心评分：${s.score}")
         append("理由：综合评分 ${s.score}/100、信号「${s.signal}」")
+        if (h != null) {
+            append("，持仓周期 $horizon")
+            days?.let { append("，已持有 $it 个自然日") }
+        }
+        if (h != null && !pnlPct.isNaN()) append("，现持仓浮动 ${if (pnlPct >= 0) "+" else ""}${f2(pnlPct)}%")
         append(if (s.risks.isNotBlank()) "，主要制约为${s.risks}。" else "，无额外制约。")
         append("若后续量能配合且守住 MA10，可再评估加仓。")
     }
@@ -720,6 +769,9 @@ object MultiAgent {
 
         val lean = Prefs.isLean(ctx)
         val newsLimit = if (lean) 4 else 6
+        // 持有天数：优先手动填写值，否则按加入自选当天起算；不在自选或时间未知为 null
+        val autoDays = Prefs.holdingDays(ctx, code)
+        val holdDays = Prefs.effectiveDays(holding, autoDays)
         val snippetLimit = if (lean) 60 else 100
 
         LlmApi.resetStats()
@@ -755,6 +807,7 @@ object MultiAgent {
         val snap = parseSnap(summary)
 
         // v2.12.43：现有持仓摘要（本地算好浮盈与仓位占比，模型不重复计算，省 token）
+        // v2.12.55：补盈亏状态档位，强制下游按浮盈/浮亏与趋势给差异化动作
         val holdingBlock = buildString {
             val h = holding
             if (h == null || !h.valid) {
@@ -762,22 +815,40 @@ object MultiAgent {
             } else {
                 appendLine("【现有持仓】")
                 appendLine("成本价：${f2(h.cost)} 元；持股：${formatShares(h.shares)} 股")
+                val horizon = Holding.normalizeHorizon(h.horizon)
+                val daysText = when {
+                    holding?.holdDaysBase != null -> "已持有 $holdDays 个自然日（手动填写基准，每日累计）"
+                    holdDays != null -> "已持有 $holdDays 个自然日"
+                    else -> "加入自选时间未知"
+                }
+                appendLine("持仓周期：$horizon；$daysText")
+                var pnlPct = Double.NaN
                 if (snap.price > 0) {
                     val costMv = h.cost * h.shares
                     val nowMv = snap.price * h.shares
                     val pnl = nowMv - costMv
-                    val pnlPct = if (h.cost > 0.0) (snap.price / h.cost - 1.0) * 100 else Double.NaN
+                    pnlPct = if (h.cost > 0.0) (snap.price / h.cost - 1.0) * 100 else Double.NaN
                     append("现价：${f2(snap.price)} 元；持仓市值约 ${f2(nowMv)} 元；浮动")
                     append(if (pnl >= 0) "盈利" else "亏损")
                     append(" ${f2(kotlin.math.abs(pnl))} 元")
                     if (!pnlPct.isNaN()) append("（${if (pnlPct >= 0) "+" else ""}${f2(pnlPct)}%）")
                     appendLine()
+                    val status = when {
+                        pnlPct.isNaN() -> "数据不足"
+                        pnlPct <= -5.0 -> "明显浮亏"
+                        pnlPct < 0.0 -> "小幅浮亏"
+                        pnlPct <= 5.0 -> "基本持平/小幅浮盈"
+                        else -> "浮盈"
+                    }
+                    appendLine("持仓状态：$status（现价相对成本 ${if (pnlPct >= 0) "+" else ""}${f2(pnlPct)}%）")
                 }
                 if (h.cash > 0.0 && snap.price > 0.0) {
                     val posPct = snap.price * h.shares / h.cash * 100.0
                     appendLine("可用总资金：${f2(h.cash)} 元；该票仓位约 ${f2(posPct)}%")
                 }
-                append("请结合现有仓位给出加仓/减仓/持有/清仓建议，不要按空仓视角给新建仓位。")
+                append("请先对照成本价与现价的盈亏档位，再结合趋势、消息与持仓周期给出加仓/减仓/持有/清仓/观望建议；" +
+                    "亏损且跌破止损或趋势走弱时应明确减仓或卖出止损，不得用「观望/持有」回避；无明确理由不要建议补仓摊薄。" +
+                    "动作口径须匹配持仓周期：短线按数日维度，破位或高位滞涨快进快出，不因短期反弹恋战；中长线按数周至数月，回踩支撑可持有或加仓，容忍正常波动；长线以基本面与中期趋势为主，短期波动不轻易卖出。")
             }
         }
 
@@ -922,7 +993,7 @@ object MultiAgent {
             extra = "【研究经理汇总】\n$research\n\n【多空辩论结论】\n$debate\n\n$evidenceBlock\n\n$holdingBlock",
             temp = 0.3, maxTokens = 520
         )
-        val trader = traderRaw.ifBlank { localTrader(snap).also { degraded++ } }.let { stripHeading(it) }
+        val trader = traderRaw.ifBlank { localTrader(snap, holding, holdDays).also { degraded++ } }.let { stripHeading(it) }
         onStage("交易员", "完成", trader)
 
         // ---- 5. 风控（结合现有仓位评估集中度与浮亏承受） ----
@@ -939,10 +1010,10 @@ object MultiAgent {
         onStage("组合经理", "终审中", "")
         val portfolioRaw = ask(
             TASK_PORTFOLIO,
-            extra = "【交易员决策】\n$trader\n\n【风险评估】\n$risk",
+            extra = "【交易员决策】\n$trader\n\n【风险评估】\n$risk\n\n$holdingBlock",
             temp = 0.3, maxTokens = 420
         )
-        val portfolio = portfolioRaw.ifBlank { localPortfolio(snap).also { degraded++ } }.let { stripHeading(it) }
+        val portfolio = portfolioRaw.ifBlank { localPortfolio(snap, holding, holdDays).also { degraded++ } }.let { stripHeading(it) }
         onStage("组合经理", "完成", portfolio)
 
         if (degraded > 0) Log.i("MultiAgent", "本次有 $degraded 个环节由本地规则补全")

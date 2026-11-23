@@ -55,13 +55,14 @@ class StockDetailActivity : BaseActivity() {
         binding.llmModelRow.setOnClickListener { showLlmPicker() }
         refreshLlmLabel()
         // v2.12.43 持仓录入回填 + 失焦保存 + 清空
+        setupHoldingHorizonSpinner()
         fillHolding()
         binding.holdingSave.setOnClickListener {
             persistHolding()
             val h = Prefs.loadHolding(this, code)
             Toast.makeText(
                 this,
-                if (h != null) "持仓已保存" else "成本价与持股未填，按无持仓视角",
+                if (h != null) "持仓已保存" else "成本价、持股、总资金未填全，按无持仓视角",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -69,10 +70,12 @@ class StockDetailActivity : BaseActivity() {
             binding.etHoldCost.setText("")
             binding.etHoldShares.setText("")
             binding.etHoldCash.setText("")
+            binding.etHoldDays.setText("")
+            binding.holdingHorizonSpinner.setSelection(0)
             Prefs.saveHolding(this, code, null)
             Toast.makeText(this, "已清空持仓记录", Toast.LENGTH_SHORT).show()
         }
-        listOf(binding.etHoldCost, binding.etHoldShares, binding.etHoldCash).forEach { et ->
+        listOf(binding.etHoldCost, binding.etHoldShares, binding.etHoldCash, binding.etHoldDays).forEach { et ->
             et.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) persistHolding() }
         }
         // v2.6.0：快捷添加自选
@@ -104,6 +107,13 @@ class StockDetailActivity : BaseActivity() {
         setupVolSwitch()
 
         loadData()
+    }
+
+    /** 持仓周期下拉：占位项 + 短线/中长线/长线，透明背景复用指标下拉样式 */
+    private fun setupHoldingHorizonSpinner() {
+        binding.holdingHorizonSpinner.adapter =
+            indexAdapter(arrayOf(HOLDING_HORIZON_PROMPT) + Holding.HORIZONS.toTypedArray())
+        binding.holdingHorizonSpinner.setSelection(0)
     }
 
     /** 主图/附图指标切换（同花顺风格），默认主图 MA、附图 VOL */
@@ -598,6 +608,7 @@ class StockDetailActivity : BaseActivity() {
             binding.btnWatch.text = "★ 已自选"
             Toast.makeText(this, "已添加自选：$nm", Toast.LENGTH_SHORT).show()
         }
+        fillHolding()
     }
 
     private fun startAiAnalyze() {
@@ -847,14 +858,28 @@ class StockDetailActivity : BaseActivity() {
         binding.etHoldCash.setText(
             if (h != null && h.valid && h.cash > 0) fmt2(h.cash) else ""
         )
+        // 持有天数：优先手填基准累计，否则回填加入自选起算的天数，无记录留空
+        val autoDays = Prefs.holdingDays(this, code)
+        val daysText = Prefs.effectiveDays(h, autoDays)?.toString() ?: ""
+        binding.etHoldDays.setText(daysText)
+        // 周期下拉：有有效持仓才选中具体周期，否则回到占位项
+        val horizonIdx = if (h != null && h.valid) {
+            1 + Holding.HORIZONS.indexOf(h.horizon).coerceAtLeast(0)
+        } else 0
+        binding.holdingHorizonSpinner.setSelection(horizonIdx)
     }
 
-    /** 解析输入并保存持仓；成本或股数缺失则视为无持仓并清除记录 */
+    /** 解析输入并保存持仓；成本、持股、总资金三项齐全才视为有持仓，否则清除记录 */
     private fun persistHolding() {
         val cost = binding.etHoldCost.text.toString().trim().replace(",", "").toDoubleOrNull() ?: 0.0
         val shares = binding.etHoldShares.text.toString().trim().replace(",", "").toDoubleOrNull() ?: 0.0
         val cash = binding.etHoldCash.text.toString().trim().replace(",", "").toDoubleOrNull() ?: 0.0
-        val h = if (cost > 0 && shares > 0) Holding(cost, shares, cash) else null
+        val sel = binding.holdingHorizonSpinner.selectedItem?.toString()
+        val horizon = if (sel in Holding.HORIZONS) sel!! else Holding.HORIZON_SHORT
+        val daysInput = binding.etHoldDays.text.toString().trim().toIntOrNull()
+        val daysBase = if (daysInput != null && daysInput >= 0) daysInput else null
+        val daysBaseAt = if (daysBase != null) System.currentTimeMillis() else null
+        val h = if (cost > 0 && shares > 0 && cash > 0) Holding(cost, shares, cash, horizon, daysBase, daysBaseAt) else null
         Prefs.saveHolding(this, code, h)
     }
 
@@ -944,6 +969,8 @@ class StockDetailActivity : BaseActivity() {
     }
 
     companion object {
+        /** 持仓周期下拉占位项（未选择周期） */
+        private const val HOLDING_HORIZON_PROMPT = "周期"
         private const val SYSTEM_PROMPT = "你是一名专业、审慎的A股技术分析师。用户会提供一只股票的实时行情与技术指标数据。请基于数据输出中文分析报告，严格按以下结构（用 Markdown 标题）：\n" +
             "## 核心洞察\n一段120-180字的综合判断：现价与涨跌、均线排列与趋势强度、量价关系、基本面与估值关键点、当前所处市场阶段，最后给出明确倾向。\n" +
             "## 操作建议\n给出明确建议（买入/持有/观望/回避）并一句话说明理由。\n" +

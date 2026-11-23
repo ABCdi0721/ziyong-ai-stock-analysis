@@ -202,7 +202,7 @@ class MarketFragment : Fragment() {
 
         b.upTitle.text = "领涨行业（${d.upSectors.size}/${d.totalSectors} 个）"
         b.downTitle.text = "领跌行业（${d.downSectors.size} 个）"
-        b.sectorSource.text = "数据源：东方财富行业板块·${d.updateTime} 更新"
+        b.sectorSource.text = "数据源：${d.sectorSource}·${d.updateTime} 更新"
 
         b.upSectors.removeAllViews()
         b.downSectors.removeAllViews()
@@ -210,6 +210,132 @@ class MarketFragment : Fragment() {
             d.downSectors.map { kotlin.math.abs(it.changePct) }).maxOrNull() ?: 1.0
         d.upSectors.forEach { b.upSectors.addView(buildSectorRow(it, true, maxAbs)) }
         d.downSectors.forEach { b.downSectors.addView(buildSectorRow(it, false, maxAbs)) }
+
+        renderMarketIndices(d)
+        renderDistribution(d)
+    }
+
+    /** 涨跌分档分布柱状图（财联社；东财兜底无分档时整组隐藏） */
+    private fun renderDistribution(d: MarketApi.MarketData) {
+        val b = binding ?: return
+        val ctx = requireContext()
+        val buckets = d.distribution
+        b.distChart.removeAllViews()
+        if (buckets.isNullOrEmpty()) {
+            b.distTitle.visibility = View.GONE
+            b.distMedian.visibility = View.GONE
+            b.distChart.visibility = View.GONE
+            return
+        }
+        b.distTitle.visibility = View.VISIBLE
+        b.distMedian.visibility = View.VISIBLE
+        b.distChart.visibility = View.VISIBLE
+        b.distMedian.text = String.format("涨跌中位数 %+.2f%%", d.medianPct)
+        val max = buckets.maxOf { it.count }.coerceAtLeast(1)
+        buckets.forEach { bucket ->
+            val color = when (bucket.kind) {
+                1 -> UP_RED
+                -1 -> DOWN_GREEN
+                else -> themeColor(ATTR_TEXT2)
+            }
+            val col = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(dp(34), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { marginEnd = dp(6) }
+            }
+            col.addView(TextView(ctx).apply {
+                text = bucket.count.toString()
+                textSize = 10f
+                setTextColor(color)
+            })
+            val barH = (dp(4) + dp(106) * bucket.count / max).coerceAtLeast(dp(4))
+            col.addView(View(ctx).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(18), barH)
+                setBackgroundColor(color)
+                alpha = 0.85f
+            })
+            col.addView(TextView(ctx).apply {
+                text = bucket.label
+                textSize = 10f
+                setTextColor(themeColor(ATTR_TEXT2))
+            })
+            b.distChart.addView(col)
+        }
+    }
+
+    /** 市场指数横滑卡片 + 全市场涨跌家数条 */
+    private fun renderMarketIndices(d: MarketApi.MarketData) {
+        val b = binding ?: return
+        b.breadthTime.text = "更新 ${d.updateTime}"
+
+        b.indexChips.removeAllViews()
+        d.indices.forEach { b.indexChips.addView(buildIndexCard(it)) }
+
+        val up = d.breadthUp
+        val down = d.breadthDown
+        val flat = d.breadthFlat
+        if (up < 0) {
+            b.breadthDownLabel.text = "下跌 --"
+            b.breadthUpLabel.text = "上涨 --"
+            setBarWeight(b.breadthDownBar, 0f)
+            setBarWeight(b.breadthFlatBar, 0f)
+            setBarWeight(b.breadthUpBar, 0f)
+            return
+        }
+        val total = (up + down + flat).coerceAtLeast(1)
+        b.breadthDownLabel.text = "下跌 $down"
+        b.breadthUpLabel.text = "上涨 $up"
+        b.breadthDownLabel.setTextColor(DOWN_GREEN)
+        b.breadthUpLabel.setTextColor(UP_RED)
+        setBarWeight(b.breadthDownBar, down.toFloat() / total)
+        setBarWeight(b.breadthFlatBar, flat.toFloat() / total)
+        setBarWeight(b.breadthUpBar, up.toFloat() / total)
+        b.breadthFlatBar.setBackgroundColor(themeColor(ATTR_SURFACE2))
+    }
+
+    private fun setBarWeight(v: View, weight: Float) {
+        val lp = v.layoutParams as LinearLayout.LayoutParams
+        lp.weight = weight.coerceIn(0f, 1f)
+        v.layoutParams = lp
+    }
+
+    private fun buildIndexCard(q: MarketApi.IndexQuote): View {
+        val ctx = requireContext()
+        val up = q.changePct >= 0
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(dp(140), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { marginEnd = dp(10) }
+            val bg = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(if (up) 0x14D93025.toInt() else 0x14188038.toInt())
+            }
+            background = bg
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+        }
+        card.addView(TextView(ctx).apply {
+            text = q.name
+            textSize = 12f
+            setTextColor(themeColor(ATTR_TEXT2))
+        })
+        card.addView(TextView(ctx).apply {
+            text = String.format("%.2f", q.price)
+            textSize = 20f
+            paint.isFakeBoldText = true
+            setTextColor(if (up) UP_RED else DOWN_GREEN)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(4) }
+        })
+        card.addView(TextView(ctx).apply {
+            text = String.format("%+.2f  %+.2f%%", q.change, q.changePct)
+            textSize = 12f
+            setTextColor(if (up) UP_RED else DOWN_GREEN)
+        })
+        return card
     }
 
     private fun setLight(v: TextView, on: Boolean, name: String) {
@@ -265,11 +391,14 @@ class MarketFragment : Fragment() {
             setTextColor(if (isUp) UP_RED else DOWN_GREEN)
             paint.isFakeBoldText = true
         })
-        right.addView(TextView(ctx).apply {
-            text = "涨${s.upCount}/跌${s.downCount}"
-            textSize = 10f
-            setTextColor(themeColor(ATTR_TEXT2))
-        })
+        // 财联社板块无涨跌家数字段；为 0 时不显示副行，避免「涨0/跌0」
+        if (s.upCount > 0 || s.downCount > 0) {
+            right.addView(TextView(ctx).apply {
+                text = "涨${s.upCount}/跌${s.downCount}"
+                textSize = 10f
+                setTextColor(themeColor(ATTR_TEXT2))
+            })
+        }
         row.addView(right)
 
         return row
