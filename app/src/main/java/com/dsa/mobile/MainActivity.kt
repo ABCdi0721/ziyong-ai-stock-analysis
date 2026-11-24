@@ -17,9 +17,11 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import com.dsa.mobile.databinding.ActivityMainBinding
 import com.dsa.mobile.glass.DockGlassBar
+import com.dsa.mobile.glass.GlassAmbientBackground
 import com.dsa.mobile.glass.setGlassContent
 import com.google.android.material.color.MaterialColors
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 
 /**
  * 主界面（v2.12.7）
@@ -78,9 +80,17 @@ class MainActivity : BaseActivity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
         }
 
+        setupAmbient()
         setupDock()
         setupPager()
         setupGlobalMascot()
+    }
+
+    /** v2.12.63：全局液态玻璃氛围光晕层（主色径向光斑，深浅/预设主色自适应） */
+    private fun setupAmbient() {
+        binding.ambientLayer.setGlassContent(this) { colors ->
+            GlassAmbientBackground(colors = colors, modifier = Modifier.fillMaxSize())
+        }
     }
 
     /** v2.12.11：外观设置开启「宠物全局显示」后，在主界面各页签右下角悬浮同一宠物 */
@@ -249,6 +259,9 @@ class MainActivity : BaseActivity() {
     // v2.8.0：从主题设置页返回时，若主题/深色/背景发生变化则重建主界面使其生效
     override fun onResume() {
         super.onResume()
+        // v2.12.64：替换背景图时文件名不变、主题 key 不变，需主动重绘根背景，
+        // 否则返回主界面仍是旧图，要杀进程重开才生效。
+        binding.root.post { ThemeManager.applyBgToRoot(binding.root, this) }
         val key = ThemeManager.themeKey(this)
         if (lastThemeKey != null && lastThemeKey != key) {
             lastThemeKey = key

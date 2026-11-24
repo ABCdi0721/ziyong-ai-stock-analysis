@@ -4,6 +4,12 @@
     android:layout_height="match_parent"
     android:background="?attr/dsaBg">
 
+    <!-- v2.12.63：液态玻璃氛围光晕层（最底层，主色径向光斑；纯视觉，不影响页面内容与交互） -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/ambientLayer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
     <!-- v2.12.7：ViewPager2 承载四个页签，左右拖动时相邻页与当前页同屏联动平移。
          v2.12.14：pager 铺满全屏，dock 悬浮叠加在底部，页面内容可延伸到 dock 后方被玻璃透出 -->
     <androidx.viewpager2.widget.ViewPager2

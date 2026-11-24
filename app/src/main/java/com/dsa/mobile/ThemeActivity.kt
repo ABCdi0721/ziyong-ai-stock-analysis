@@ -1,7 +1,5 @@
 package com.dsa.mobile
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -10,18 +8,23 @@ import android.widget.RadioButton
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.dsa.mobile.databinding.ActivityThemeBinding
-import java.io.File
-import java.io.FileOutputStream
 
 /** v2.8.0：主题外观设置页（预设色 / 自定义颜色 / 深色模式 / 自定义图片背景） */
 class ThemeActivity : BaseActivity() {
 
     private lateinit var binding: ActivityThemeBinding
 
+    // v2.12.64：先系统选图，再进裁切页按屏幕比例预览/裁切，不再默认拉伸铺满
     private val pickImage = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) saveBgImage(uri)
+        if (uri != null) cropLauncher.launch(CropActivity.buildIntent(this, uri))
+    }
+
+    private val cropLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) onCropDone()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -216,32 +219,15 @@ class ThemeActivity : BaseActivity() {
         binding.themePreview.post { ThemeManager.bgDrawable(this)?.let { binding.themePreview.background = it } }
     }
 
-    private fun saveBgImage(uri: Uri) {
-        try {
-            val src = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return
-            val bmp = scaleDown(src, 1280)
-            val f = File(filesDir, "theme_bg.png")
-            FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 90, it) }
-            Prefs.saveTheme(this, Prefs.themePreset(this), -1,
-                "theme_bg.png", Prefs.themeBgAlpha(this), Prefs.themeBgBlur(this),
-                Prefs.themeDarkMode(this))
-            ThemeManager.clearBgCache()
-            Toast.makeText(this, "背景图片已保存", Toast.LENGTH_SHORT).show()
-            recreate()
-        } catch (e: Exception) {
-            Toast.makeText(this, "图片保存失败：${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun scaleDown(src: Bitmap, maxSide: Int): Bitmap {
-        val w = src.width
-        val h = src.height
-        val max = maxOf(w, h)
-        if (max <= maxSide) return src
-        val scale = maxSide.toFloat() / max
-        val nw = (w * scale).toInt().coerceAtLeast(1)
-        val nh = (h * scale).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(src, nw, nh, true)
+    /** v2.12.64：裁切页已把图片写入 theme_bg.png；这里登记文件名、清缓存并刷新预览 */
+    private fun onCropDone() {
+        ThemeManager.clearBgCache()
+        Prefs.saveTheme(this, Prefs.themePreset(this), -1,
+            "theme_bg.png", Prefs.themeBgAlpha(this), Prefs.themeBgBlur(this),
+            Prefs.themeDarkMode(this))
+        binding.swBlur.isEnabled = true
+        binding.themePreview.post { ThemeManager.bgDrawable(this)?.let { binding.themePreview.background = it } }
+        Toast.makeText(this, "背景图片已保存", Toast.LENGTH_SHORT).show()
     }
 
     /** v2.12.8：点击顶部栏返回箭头关闭本页 */

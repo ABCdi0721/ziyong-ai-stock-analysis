@@ -4,6 +4,10 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /** 本地存储：设置 / 自选股 / 历史报告 */
@@ -889,14 +893,16 @@ object Prefs {
     }
 
     /**
-     * 实际持有天数：手填基准 + 距基准填写日的自然日差（每天 +1）；
+     * 实际持有天数：手填基准 + 距基准填写日的自然日差（跨一个自然日即 +1）；
      * 无手填基准则回落加入自选起算天数。
      */
     fun effectiveDays(h: Holding?, autoDays: Int?): Int? {
         val base = h?.holdDaysBase ?: return autoDays
         val baseAt = h.holdDaysBaseAt ?: return base
-        val diff = System.currentTimeMillis() - baseAt
-        val passed = if (diff <= 0L) 0 else (diff / 86_400_000L).toInt()
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val baseDay = Instant.ofEpochMilli(baseAt).atZone(zone).toLocalDate()
+        val passed = ChronoUnit.DAYS.between(baseDay, today).coerceAtLeast(0).toInt()
         return base + passed
     }
 

@@ -14,19 +14,24 @@ fun GlassPill(
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified,
     stroke: Color = Color.Unspecified,
+    highlight: Color = Color.Unspecified,
     lensHeightDp: Dp = 8.dp,
     lensAmountDp: Dp = 10.dp,
     shadowEnabled: Boolean = false,
+    onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val colors = LocalGlassColors.current
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(percent = 50),
-        tint = tint,
-        stroke = stroke,
+        tint = tint.ifUnspecified { colors?.pillTint() ?: Color.Unspecified },
+        stroke = stroke.ifUnspecified { colors?.glassStroke ?: Color.Unspecified },
+        highlightColor = highlight.ifUnspecified { colors?.highlight() ?: Color.Unspecified },
         lensHeightDp = lensHeightDp,
         lensAmountDp = lensAmountDp,
         shadowEnabled = shadowEnabled,
+        onClick = onClick,
         content = content
     )
 }
@@ -38,19 +43,27 @@ fun GlassCard(
     cornerDp: Dp = 20.dp,
     tint: Color = Color.Unspecified,
     stroke: Color = Color.Unspecified,
+    highlight: Color = Color.Unspecified,
     blurDp: Dp = 0.dp,
     shadowEnabled: Boolean = true,
+    onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val colors = LocalGlassColors.current
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(cornerDp),
-        tint = tint,
-        stroke = stroke,
+        tint = tint.ifUnspecified { colors?.cardTint() ?: Color.Unspecified },
+        stroke = stroke.ifUnspecified { colors?.glassStroke ?: Color.Unspecified },
+        highlightColor = highlight.ifUnspecified { colors?.highlight() ?: Color.Unspecified },
         blurDp = blurDp,
         lensHeightDp = 10.dp,
         lensAmountDp = 14.dp,
         shadowEnabled = shadowEnabled,
+        onClick = onClick,
         content = content
     )
 }
+
+private fun Color.ifUnspecified(fallback: () -> Color): Color =
+    if (this == Color.Unspecified) fallback() else this
